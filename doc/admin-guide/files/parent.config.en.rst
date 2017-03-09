@@ -154,9 +154,9 @@ The following list shows the possible actions and their allowed values.
 .. _parent-config-format-parent-retry:
 
 ``parent_retry``
-    - ``simple_retry`` - If the parent origin server returns a 404 response on a request
-      a new parent is selected and the request is retried.  The number of retries is controlled
-      by ``max_simple_retries`` which is set to 1 by default.
+    - ``simple_retry`` - If the parent server returns a 404 response on a request or if the response matches
+      a list of http 4xx responses defined in ``simple_retry_responses`` a new parent is selected and the 
+      request is retried.  The number of retries is controlled by ``max_simple_retries`` which is set to 1 by default.
     - ``unavailable_server_retry`` - If the parent returns a 503 response or if the reponse matches
       a list of http 5xx responses defined in ``unavailable_server_retry_responses``, the currently selected
       parent is marked down and a new parent is selected to retry the request.  The number of
@@ -170,6 +170,13 @@ The following list shows the possible actions and their allowed values.
   ``both``, this parameter is a comma separated list of http 5xx response codes that will invoke the
   ``unavailable_server_retry`` described in the ``parent_retry`` section.  By default, ``unavailable_server_retry_responses``
   is set to 503.
+
+.. _parent-config-format-simple-retry-responses:
+
+``simple_retry_responses``
+  If ``parent_retry`` is set to either ``simple_retry`` or ``both``, this parameter is 
+  a comma separated list of http 4xx response codes that will invoke the ``simple_retry`` described in 
+  the ``parent_retry`` section.  By default, ``simple_retry_responses`` is set to 404.
 
 .. _parent-config-format-max-simple-retries:
 
