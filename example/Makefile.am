@@ -25,16 +25,16 @@ libatscppai = $(top_builddir)/lib/cppapi/libatscppapi.la
 example_Plugins = \
 	add_header.la \
 	append_transform.la \
-	basic-auth.la \
-	blacklist-0.la \
-	blacklist-1.la \
-	bnull-transform.la \
-	cache-scan.la \
+	basic_auth.la \
+	blacklist_0.la \
+	blacklist_1.la \
+	bnull_transform.la \
+	cache_scan.la \
 	file-1.la \
 	hello.la \
 	intercept.la \
 	lifecycle-plugin.la \
-	null-transform.la \
+	null_transform.la \
 	output-header.la \
 	passthru.la \
 	protocol-stack.la \
@@ -89,16 +89,16 @@ endif
 
 add_header_la_SOURCES = add_header/add_header.c
 append_transform_la_SOURCES = append_transform/append_transform.c
-basic_auth_la_SOURCES = basic-auth/basic-auth.c
-blacklist_0_la_SOURCES = blacklist-0/blacklist-0.c
-blacklist_1_la_SOURCES = blacklist-1/blacklist-1.c
-bnull_transform_la_SOURCES = bnull-transform/bnull-transform.c
-cache_scan_la_SOURCES = cache-scan/cache-scan.cc
+basic_auth_la_SOURCES = basic_auth/basic_auth.c
+blacklist_0_la_SOURCES = blacklist_0/blacklist_0.c
+blacklist_1_la_SOURCES = blacklist_1/blacklist_1.c
+bnull_transform_la_SOURCES = bnull_transform/bnull_transform.c
+cache_scan_la_SOURCES = cache_scan/cache_scan.cc
 file_1_la_SOURCES = file-1/file-1.c
 hello_la_SOURCES = hello/hello.c
 intercept_la_SOURCES = intercept/intercept.cc
 lifecycle_plugin_la_SOURCES = lifecycle-plugin/lifecycle-plugin.c
-null_transform_la_SOURCES = null-transform/null-transform.c
+null_transform_la_SOURCES = null_transform/null_transform.c
 output_header_la_SOURCES = output-header/output-header.c
 passthru_la_SOURCES = passthru/passthru.cc
 protocol_la_SOURCES = protocol/Protocol.c protocol/TxnSM.c
