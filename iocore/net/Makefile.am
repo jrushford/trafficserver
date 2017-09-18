@@ -46,7 +46,8 @@ test_certlookup_SOURCES = \
 test_certlookup_LDADD = \
   @OPENSSL_LIBS@ \
   $(top_builddir)/lib/ts/libtsutil.la \
-  $(top_builddir)/iocore/eventsystem/libinkevent.a
+  $(top_builddir)/iocore/eventsystem/libinkevent.a \
+  $(top_builddir)/proxy/ParentSelectionStrategy.o
 
 libinknet_a_SOURCES = \
   BIO_fastopen.cc \

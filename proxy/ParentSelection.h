@@ -276,6 +276,7 @@ private:
   friend class ParentRoundRobin;
   friend class ParentConfigParams;
   friend class ParentRecord;
+  friend class ParentSelectionStrategy;
 };
 
 struct ParentSelectionPolicy {
@@ -290,6 +291,9 @@ struct ParentSelectionPolicy {
 class ParentSelectionStrategy
 {
 public:
+  //
+  // Return the pRecord.
+  virtual pRecord *getParents(ParentResult *result) = 0;
   // void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold, unsigned int
   // retry_time)
   //
@@ -298,24 +302,13 @@ public:
   virtual void selectParent(bool firstCall, ParentResult *result, RequestData *rdata, unsigned int fail_threshold,
                             unsigned int retry_time) = 0;
 
-  // void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time)
-  //
-  //    Marks the parent pointed to by result as down
-  //
-  virtual void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time) = 0;
-
   // uint32_t numParents(ParentResult *result);
   //
   // Returns the number of parent records in a strategy.
   //
   virtual uint32_t numParents(ParentResult *result) const = 0;
-
-  // void markParentUp
-  //
-  //    After a successful retry, http calls this function
-  //      to clear the bits indicating the parent is down
-  //
-  virtual void markParentUp(ParentResult *result) = 0;
+  void markParentDown(ParentResult *result, unsigned int fail_threshold, unsigned int retry_time);
+  void markParentUp(ParentResult *result);
 
   // virtual destructor.
   virtual ~ParentSelectionStrategy(){};
@@ -351,6 +344,15 @@ public:
     }
   }
 
+  void
+  markParentUp(ParentResult *result)
+  {
+    if (!result->is_api_result()) {
+      ink_release_assert(result != NULL);
+      result->rec->selection_strategy->markParentUp(result);
+    }
+  }
+
   uint32_t
   numParents(ParentResult *result)
   {
@@ -359,15 +361,6 @@ public:
     } else {
       ink_release_assert(result->rec->selection_strategy != NULL);
       return result->rec->selection_strategy->numParents(result);
-    }
-  }
-
-  void
-  markParentUp(ParentResult *result)
-  {
-    if (!result->is_api_result()) {
-      ink_release_assert(result != NULL);
-      result->rec->selection_strategy->markParentUp(result);
     }
   }
 
