@@ -38,6 +38,7 @@
 #include <arpa/inet.h>
 #include <limits.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #ifdef HAVE_PCRE_PCRE_H
 #include <pcre/pcre.h>
@@ -56,6 +57,7 @@ struct config {
   char keys[MAX_KEY_NUM][MAX_KEY_LEN];
   pcre *regex;
   pcre_extra *regex_extra;
+  char *sig_anchor;
 };
 
 static void
@@ -63,6 +65,7 @@ free_cfg(struct config *cfg)
 {
   TSError("[url_sig] Cleaning up...");
   TSfree(cfg->err_url);
+  TSfree(cfg->sig_anchor);
 
   if (cfg->regex_extra) {
 #ifndef PCRE_STUDY_JIT_COMPILE
@@ -170,8 +173,7 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       }
       TSDebug(PLUGIN_NAME, "key number %d == %s", keynum, value);
       if (keynum >= MAX_KEY_NUM || keynum < 0) {
-        snprintf(errbuf, errbuf_size - 1, "[TSRemapNewInstance] - Key number (%d) >= MAX_KEY_NUM (%d) or NaN.", keynum,
-                 MAX_KEY_NUM);
+        snprintf(errbuf, errbuf_size - 1, "[TSRemapNewInstance] - Key number (%d) >= MAX_KEY_NUM (%d) or NaN.", keynum, MAX_KEY_NUM);
         fclose(file);
         free_cfg(cfg);
         return TS_ERROR;
@@ -190,6 +192,8 @@ TSRemapNewInstance(int argc, char *argv[], void **ih, char *errbuf, int errbuf_s
       } else {
         cfg->err_url = NULL;
       }
+    } else if (strncmp(line, "sig_anchor", 10) == 0) {
+      cfg->sig_anchor = TSstrndup(value, strlen(value));
     } else if (strncmp(line, "excl_regex", 10) == 0) {
       // compile and study regex
       const char *errptr;
@@ -315,6 +319,127 @@ getAppQueryString(char *query_string, unsigned int query_length)
   }
 }
 
+static char *
+urlParse(bool *https, char *anchor, char *url, char *new_path_seg, int new_path_seg_len, char *signed_seg,
+         unsigned int signed_seg_len)
+{
+  char *segment[MAX_SEGMENTS];
+  unsigned char decoded_string[2048] = {'\0'};
+  char new_url[8192]                 = {'\0'};
+  char *p = NULL, *sig_anchor = NULL, *saveptr = NULL;
+  int i = 0, numtoks = 0, cp_len = 0, l, decoded_len = 0, sig_anchor_seg = 0;
+
+  // parse the url.
+  if ((p = strtok_r(url, "/", &saveptr)) != NULL) {
+    segment[numtoks++] = p;
+    do {
+      p = strtok_r(NULL, "/", &saveptr);
+      if (p != NULL) {
+        segment[numtoks] = p;
+        if (anchor != NULL && sig_anchor_seg == 0) {
+          // look for the signed anchor string.
+          if ((sig_anchor = strcasestr(segment[numtoks], anchor)) != NULL) {
+            // null terminate this segment just before he signing anchor, this should be a ';'.
+            *(sig_anchor - 1) = '\0';
+            if ((sig_anchor = strstr(sig_anchor, "=")) != NULL) {
+              *sig_anchor = '\0';
+              sig_anchor++;
+              sig_anchor_seg = numtoks;
+            }
+          }
+        }
+        numtoks++;
+      }
+    } while (p != NULL && numtoks < MAX_SEGMENTS);
+  } else {
+    return NULL;
+  }
+  if ((numtoks >= MAX_SEGMENTS) || (numtoks < 3)) {
+    return NULL;
+  }
+
+  // create a new path string for later use when dealing with query parameters.
+  // this string will not contain the signing parameters.  skips the scheme
+  // and fqdn by starting with 2.
+  for (i = 2; i < numtoks; i++) {
+    // if no signing anchor is found, skip the signed parameters segment.
+    if (sig_anchor == NULL && i == numtoks - 2) {
+      // the signing parameters when no signature anchor is found, should be in the
+      // last path segment so skip them.
+      continue;
+    }
+    l = strlen(segment[i]);
+    if (l + 1 > new_path_seg_len) {
+      TSError("insuficient space to copy into new_path_seg buffer.");
+      return NULL;
+    } else {
+      strncat(new_path_seg, segment[i], l);
+      if (i != numtoks - 1) {
+        strncat(new_path_seg, "/", 1);
+      }
+      cp_len += l + 1;
+    }
+  }
+  TSDebug(PLUGIN_NAME, "new_path_seg: %s", new_path_seg);
+
+  // save the encoded signing parameter data
+  if (sig_anchor != NULL) { // a signature anchor string was found.
+    if (strlen(sig_anchor) < signed_seg_len) {
+      strncpy(signed_seg, sig_anchor, strlen(sig_anchor));
+    } else {
+      TSError("insuficient space to copy into new_path_seg buffer.");
+    }
+  } else { // no signature anchor string was found, assum it is in the last path segment.
+    if (strlen(segment[numtoks - 2]) < signed_seg_len) {
+      strncpy(signed_seg, segment[numtoks - 2], strlen(segment[numtoks - 2]));
+    } else {
+      TSError("insuficient space to copy into new_path_seg buffer.");
+      return NULL;
+    }
+  }
+  TSDebug(PLUGIN_NAME, "signed_seg: %s", signed_seg);
+
+  // no signature anchor was found so decode and save the signing parameters assumed
+  // to be in the last path segment.
+  if (sig_anchor == NULL) {
+    if (TSBase64Decode(segment[numtoks - 2], strlen(segment[numtoks - 2]), decoded_string, sizeof(decoded_string),
+                       (size_t *)&decoded_len) != TS_SUCCESS) {
+      TSDebug(PLUGIN_NAME, "Unable to decode the  path parameter string.");
+    }
+  } else {
+    if (TSBase64Decode(sig_anchor, strlen(sig_anchor), decoded_string, sizeof(decoded_string), (size_t *)&decoded_len) !=
+        TS_SUCCESS) {
+      TSDebug(PLUGIN_NAME, "Unable to decode the  path parameter string.");
+    }
+  }
+  TSDebug(PLUGIN_NAME, "decoded_string: %s", decoded_string);
+
+  if (https) {
+    strncat(new_url, "https://", 8);
+  } else {
+    strncat(new_url, "http://", 7);
+  }
+
+  for (i = 1; i < numtoks; i++) {
+    // cp the base64 decoded string.
+    if (i == sig_anchor_seg && sig_anchor != NULL) {
+      strncat(new_url, segment[i], strlen(segment[i]));
+      strncat(new_url, (char *)decoded_string, strlen((char *)decoded_string));
+      strncat(new_url, "/", 1);
+      continue;
+    } else if (i == numtoks - 2 && sig_anchor == NULL) {
+      strncat(new_url, (char *)decoded_string, strlen((char *)decoded_string));
+      strncat(new_url, "/", 1);
+      continue;
+    }
+    strncat(new_url, segment[i], strlen(segment[i]));
+    if (i < numtoks - 1) {
+      strncat(new_url, "/", 1);
+    }
+  }
+  return TSstrndup(new_url, strlen(new_url));
+}
+
 TSRemapStatus
 TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
 {
@@ -330,13 +455,16 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   unsigned int i       = 0;
   int j                = 0;
   unsigned int sig_len = 0;
+  bool has_path_params = false;
+  bool https_scheme    = false;
 
   /* all strings are locally allocated except url... about 25k per instance */
-  char *url;
-  char signed_part[8192]     = {'\0'}; // this initializes the whole array and is needed
-  char urltokstr[8192]       = {'\0'};
-  char client_ip[CIP_STRLEN] = {'\0'};
-  char ipstr[CIP_STRLEN]     = {'\0'};
+  char *url, *new_url;
+  char path_params[8192] = {'\0'}, new_path[8192] = {'\0'};
+  char signed_part[8192]           = {'\0'}; // this initializes the whole array and is needed
+  char urltokstr[8192]             = {'\0'};
+  char client_ip[INET6_ADDRSTRLEN] = {'\0'}; // chose the larger ipv6 size
+  char ipstr[INET6_ADDRSTRLEN]     = {'\0'}; // chose the larger ipv6 size
   unsigned char sig[MAX_SIG_SIZE + 1];
   char sig_string[2 * MAX_SIG_SIZE + 1];
 
@@ -346,10 +474,6 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   char *part      = NULL;
   char *p = NULL, *pp = NULL;
   char *query = NULL, *app_qry = NULL;
-
-  int retval, sockfd;
-  socklen_t peer_len;
-  struct sockaddr_in peer;
 
   url = TSUrlStringGet(rri->requestBufp, rri->requestUrl, &url_len);
 
@@ -379,49 +503,86 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     }
   }
 
-  if (query == NULL) {
-    err_log(url, "Has no query string.");
-    goto deny;
+  // check for path params.
+  if (query == NULL || strstr(query, "E=") == NULL) {
+    if ((new_url = urlParse(&https_scheme, cfg->sig_anchor, url, new_path, 8192, path_params, 8192)) == NULL) {
+      err_log(url, "Has no signing query string or signing path parameters.");
+      goto deny;
+    }
+    TSDebug(PLUGIN_NAME, "new_url: %s", new_url);
+    has_path_params = true;
+    TSfree(url);
+    url   = new_url;
+    query = strstr(url, ";");
+
+    if (query == NULL) {
+      err_log(url, "Has no signing query string or signing path parameters.");
+      goto deny;
+    }
   }
 
-  if (strncmp(url, "http://", strlen("http://")) != 0) {
-    err_log(url, "Invalid URL scheme - only http supported.");
-    goto deny;
+  if (strncmp(url, "https://", strlen("https://")) == 0) {
+    https_scheme = true;
   }
 
   /* first, parse the query string */
-  query++; /* get rid of the ? */
+  if (!has_path_params) {
+    query++; /* get rid of the ? */
+  }
   TSDebug(PLUGIN_NAME, "Query string is:%s", query);
 
   // Client IP - this one is optional
   p = strstr(query, CIP_QSTRING "=");
   if (p != NULL) {
-    p += strlen(CIP_QSTRING + 1);
-    pp = strstr(p, "&");
-    if ((pp - p) > CIP_STRLEN - 1 || (pp - p) < 4) {
-      err_log(url, "IP address string too long or short.");
+    p += (strlen(CIP_QSTRING) + 1);
+    struct sockaddr const *ip = TSHttpTxnClientAddrGet(txnp);
+    if (ip == NULL) {
+      TSError("Can't get client ip address.");
       goto deny;
-    }
-    strncpy(client_ip, p + strlen(CIP_QSTRING) + 1, min((pp - p - (strlen(CIP_QSTRING) + 1)), sizeof(client_ip) - 1));
-    client_ip[pp - p - (strlen(CIP_QSTRING) + 1)] = '\0';
-    TSDebug(PLUGIN_NAME, "CIP: -%s-", client_ip);
-    retval = TSHttpTxnClientFdGet(txnp, &sockfd);
-    if (retval != TS_SUCCESS) {
-      err_log(url, "Error getting sockfd.");
-      goto deny;
-    }
-    peer_len = sizeof(peer);
-    if (getpeername(sockfd, (struct sockaddr *)&peer, &peer_len) != 0) {
-      perror("Can't get peer address:");
-    }
-    struct sockaddr_in *s = (struct sockaddr_in *)&peer;
-    inet_ntop(AF_INET, &s->sin_addr, ipstr, sizeof ipstr);
-    TSDebug(PLUGIN_NAME, "Peer address: -%s-", ipstr);
-    if (strcmp(ipstr, client_ip) != 0) {
-      err_log(url, "Client IP doesn't match signature.");
-      goto deny;
+    } else {
+      switch (ip->sa_family) {
+      case AF_INET:
+        TSDebug(PLUGIN_NAME, "ip->sa_family: AF_INET");
+        has_path_params == false ? (pp = strstr(p, "&")) : (pp = strstr(p, ";"));
+        if ((pp - p) > INET_ADDRSTRLEN - 1 || (pp - p) < 4) {
+          err_log(url, "IP address string too long or short.");
+          goto deny;
+        }
+        strncpy(client_ip, p, (pp - p));
+        client_ip[pp - p] = '\0';
+        TSDebug(PLUGIN_NAME, "CIP: -%s-", client_ip);
+        inet_ntop(AF_INET, &(((struct sockaddr_in *)ip)->sin_addr), ipstr, sizeof ipstr);
+        TSDebug(PLUGIN_NAME, "Peer address: -%s-", ipstr);
+        if (strcmp(ipstr, client_ip) != 0) {
+          err_log(url, "Client IP doesn't match signature.");
+          goto deny;
+        }
+        break;
+      case AF_INET6:
+        TSDebug(PLUGIN_NAME, "ip->sa_family: AF_INET6");
+        has_path_params == false ? (pp = strstr(p, "&")) : (pp = strstr(p, ";"));
+        if ((pp - p) > INET6_ADDRSTRLEN - 1 || (pp - p) < 4) {
+          err_log(url, "IP address string too long or short.");
+          goto deny;
+        }
+        strncpy(client_ip, p, (pp - p));
+        client_ip[pp - p] = '\0';
+        TSDebug(PLUGIN_NAME, "CIP: -%s-", client_ip);
+        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)ip)->sin6_addr), ipstr, sizeof ipstr);
+        TSDebug(PLUGIN_NAME, "Peer address: -%s-", ipstr);
+        if (strcmp(ipstr, client_ip) != 0) {
+          err_log(url, "Client IP doesn't match signature.");
+          goto deny;
+        }
+        break;
+      default:
+        TSError("%s: Unknown address family %d", PLUGIN_NAME, ip->sa_family);
+        goto deny;
+        break;
+      }
     }
   }
+
   // Expiration
   p = strstr(query, EXP_QSTRING "=");
   if (p != NULL) {
@@ -466,7 +627,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
   if (p != NULL) {
     p += strlen(PAR_QSTRING) + 1;
     parts = p; // NOTE parts is not NULL terminated it is terminated by "&" of next param
-    p     = strstr(parts, "&");
+    has_path_params == false ? (p = strstr(parts, "&")) : (p = strstr(parts, ";"));
     TSDebug(PLUGIN_NAME, "Parts: %.*s", (int)(p - parts), parts);
   } else {
     err_log(url, "PartsSigned query string not found.");
@@ -492,8 +653,12 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
           keyindex, parts, signature);
 
   /* find the string that was signed - cycle through the parts letters, adding the part of the fqdn/path if it is 1 */
-  p = strstr(url, "?");
-  memcpy(urltokstr, &url[strlen("http://")], p - url - strlen("http://"));
+  has_path_params == false ? (p = strstr(url, "?")) : (p = strstr(url, ";"));
+  if (https_scheme) {
+    memcpy(urltokstr, &url[strlen("https://")], p - url - strlen("https://"));
+  } else {
+    memcpy(urltokstr, &url[strlen("http://")], p - url - strlen("http://"));
+  }
   part = strtok_r(urltokstr, "/", &p);
   while (part != NULL) {
     if (parts[j] == '1') {
@@ -507,9 +672,11 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     part = strtok_r(NULL, "/", &p);
   }
 
-  signed_part[strlen(signed_part) - 1] = '?'; // chop off the last /, replace with '?'
-  p                                    = strstr(query, SIG_QSTRING "=");
-  strncat(signed_part, query, min((p - query) + strlen(SIG_QSTRING) + 1, sizeof(signed_part) - strlen(signed_part) - 1));
+  // chop off the last /, replace with '?' or ';' as appropriate.
+  has_path_params == false ? (signed_part[strlen(signed_part) - 1] = '?') : (signed_part[strlen(signed_part) - 1] = '\0');
+  p = strstr(query, SIG_QSTRING "=");
+  TSDebug(PLUGIN_NAME, "p: %s, query: %s, signed_part: %s", p, query, signed_part);
+  strncat(signed_part, query, (p - query) + strlen(SIG_QSTRING) + 1);
 
   TSDebug(PLUGIN_NAME, "Signed string=\"%s\"", signed_part);
 
@@ -581,8 +748,19 @@ deny:
 
 /* ********* Allow ********* */
 allow:
-  if (query != NULL) {
+  TSDebug(PLUGIN_NAME, "URL: %s", url);
+  query = strstr(url, "?");
+  // app query parameters aren't affected if we've used signed path params.
+  if (query != NULL && !has_path_params) {
+    query++; // get rid of the '?'
     app_qry = getAppQueryString(query, strlen(query));
+  }
+  TSDebug(PLUGIN_NAME, "has_path_params: %d", has_path_params);
+  if (has_path_params) {
+    if (*new_path) {
+      TSUrlPathSet(rri->requestBufp, rri->requestUrl, new_path, strlen(new_path));
+    }
+    TSUrlHttpParamsSet(rri->requestBufp, rri->requestUrl, NULL, 0);
   }
 
   TSfree(url);
@@ -596,5 +774,8 @@ allow:
   if (rval != TS_SUCCESS) {
     TSError("[url_sig] Error setting the query string: %d.", rval);
   }
+  url = TSUrlStringGet(rri->requestBufp, rri->requestUrl, &url_len);
+  TSDebug(PLUGIN_NAME, "url: %s", url);
+
   return TSREMAP_NO_REMAP;
 }
