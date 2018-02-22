@@ -147,6 +147,8 @@ traffic_server_SOURCES = \
   ICPStats.cc \
   ICPevents.h \
   ICPlog.h \
+  HostStatus.cc \
+  HostStatus.h \
   IPAllow.cc \
   IPAllow.h \
   InkAPI.cc \
@@ -159,6 +161,7 @@ traffic_server_SOURCES = \
   ParentConsistentHash.h \
   ParentRoundRobin.cc \
   ParentRoundRobin.h \
+  ParentSelectionStrategy.cc \
   ParentSelection.cc \
   ParentSelection.h \
   Plugin.cc \
