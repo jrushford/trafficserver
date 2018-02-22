@@ -136,6 +136,8 @@ traffic_server_SOURCES = \
   Crash.cc \
   EventName.cc \
   FetchSM.cc \
+	HostStatus.cc \
+	HostStatus.h \
   IPAllow.cc \
   IPAllow.h \
   InkAPI.cc \

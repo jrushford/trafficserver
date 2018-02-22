@@ -79,6 +79,7 @@ extern "C" int plock(int);
 #include "ProxyClientSession.h"
 #include "logging/Log.h"
 #include "CacheControl.h"
+#include "HostStatus.h"
 #include "IPAllow.h"
 #include "ParentSelection.h"
 #include "MgmtUtils.h"
@@ -1856,6 +1857,7 @@ main(int /* argc ATS_UNUSED */, const char **argv)
     RecProcessStart();
     initCacheControl();
     IpAllow::startup();
+    HostStatus::init();
     ParentConfig::startup();
 #ifdef SPLIT_DNS
     SplitDNSConfig::startup();
