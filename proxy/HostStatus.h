@@ -52,7 +52,7 @@ struct HostStatus {
 
   static self *init();  // initialize the singleton.
   static self *instance(); // return the signleton pointer.
-  void setHostStatus(const char *key, const HostStatus_t status);
+  void setHostStatus(const char *key, const HostStatus_t& status);
   HostStatus_t getHostStatus(const char *key);
 
  private:

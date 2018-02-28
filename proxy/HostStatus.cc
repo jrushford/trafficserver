@@ -61,7 +61,7 @@ HostStatus::init()
 }
 
 void 
-HostStatus::setHostStatus(const char *key, const HostStatus_t status)
+HostStatus::setHostStatus(const char *key, const HostStatus_t& status)
 {
   HostStatus_t *_status;
 
@@ -70,10 +70,10 @@ HostStatus::setHostStatus(const char *key, const HostStatus_t status)
     *_status = status;
   } else {
     Debug("parent_select", "In HostConfigParams::setHostStatus(): key: %s, status: %d", key, status);
-    _status = static_cast<HostStatus_t *>(ats_malloc(sizeof(HostStatus_t)));
+    _status = new HostStatus_t();
     *_status  = status;
+    ink_hash_table_insert(next_hops, key, _status);
   }
-  ink_hash_table_insert(next_hops, key, _status);
   ink_mutex_release(&next_hop_mutex);
 }
 
