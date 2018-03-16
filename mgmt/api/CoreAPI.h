@@ -91,3 +91,12 @@ TSMgmtError SnapshotRemove(const char *snapshot_name);
 TSMgmtError SnapshotGetMlt(LLQ *snapshots);
 
 TSMgmtError StatsReset(bool cluster, const char *name = NULL);
+
+/***************************************************************************
+ * HostStatus
+ ***************************************************************************/
+TSMgmtError HostStatusSetDown(const char *name);
+TSMgmtError HostStatusSetUp(const char *name);
+TSMgmtError StatsReset(const char *name = NULL);
+
+#endif

@@ -211,6 +211,16 @@ CtrlGenericSubcommand(const char *name, const subcommand *cmds, unsigned ncmds, 
   return CtrlSubcommandUsage(name, cmds, ncmds, nullptr, 0);
 }
 
+static const subcommand commands[] = {
+  {subcommand_alarm, "alarm", "Manipulate alarms"},
+  {subcommand_config, "config", "Manipulate configuration records"},
+  {subcommand_metric, "metric", "Manipulate performance metrics"},
+  {subcommand_server, "server", "Stop, restart and examine the server"},
+  {subcommand_storage, "storage", "Manipulate cache storage"},
+  {subcommand_plugin, "plugin", "Interact with plugins"},
+  {subcommand_host, "host", "Interact with host status"},
+};
+
 int
 main(int argc, const char **argv)
 {

@@ -80,6 +80,7 @@ extern "C" int plock(int);
 #include "CacheControl.h"
 #include "IPAllow.h"
 #include "ParentSelection.h"
+#include "HostStatus.h"
 #include "MgmtUtils.h"
 #include "StatPages.h"
 #include "HTTP.h"
@@ -1811,6 +1812,7 @@ main(int /* argc ATS_UNUSED */, const char **argv)
     initCongestionControl();
     IpAllow::startup();
     ParentConfig::startup();
+    HostStatus::instance();
 #ifdef SPLIT_DNS
     SplitDNSConfig::startup();
 #endif

@@ -968,6 +968,9 @@ tsapi TSMgmtError TSSnapshotRemove(char *snapshot_name);
  */
 tsapi TSMgmtError TSSnapshotGetMlt(TSStringList snapshots);
 
+tsapi TSMgmtError TSHostStatusSetUp(const char *name);
+tsapi TSMgmtError TSHostStatusSetDown(const char *name);
+
 /*--- statistics operations -----------------------------------------------*/
 /* TSStatsReset: sets all the statistics variables to their default values
  * Input: cluster - Reset the stats clusterwide or not
