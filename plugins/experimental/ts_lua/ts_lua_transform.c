@@ -66,7 +66,7 @@ ts_lua_transform_handler(TSCont contp, ts_lua_http_transform_ctx *transform_ctx,
   TSVIO input_vio;
   TSIOBufferReader input_reader;
   TSIOBufferBlock blk;
-  int64_t toread, towrite, blk_len, upstream_done, input_avail, l;
+  int64_t toread, towrite, blk_len, upstream_done, input_avail, input_wm_bytes, l;
   const char *start;
   const char *res;
   size_t res_len;
@@ -104,12 +104,22 @@ ts_lua_transform_handler(TSCont contp, ts_lua_http_transform_ctx *transform_ctx,
     transform_ctx->reserved.reader = TSIOBufferReaderAlloc(transform_ctx->reserved.buffer);
 
     transform_ctx->upstream_bytes   = TSVIONBytesGet(input_vio);
+    transform_ctx->upstream_watermark_bytes =  TSIOBufferWaterMarkGet(TSVIOBufferGet(input_vio));
     transform_ctx->downstream_bytes = INT64_MAX;
+
   }
 
-  input_avail   = TSIOBufferReaderAvail(input_reader);
-  upstream_done = TSVIONDoneGet(input_vio);
-  toread        = TSVIONTodoGet(input_vio);
+  input_wm_bytes = TSIOBufferWaterMarkGet(TSVIOBufferGet(input_vio));
+  input_avail    = TSIOBufferReaderAvail(input_reader);
+  upstream_done  = TSVIONDoneGet(input_vio);
+  toread         = TSVIONTodoGet(input_vio);
+
+  // Set the input buffer water mark 
+  if (transform_ctx->upstream_watermark_bytes > 0 && transform_ctx->upstream_watermark_bytes != input_wm_bytes) {
+     TSDebug(TS_LUA_DEBUG_TAG, "[%s] Setting input_vio water mark to %" PRId64 " bytes", __FUNCTION__, transform_ctx->upstream_watermark_bytes);
+     TSIOBufferWaterMarkSet(TSVIOBufferGet(input_vio), transform_ctx->upstream_watermark_bytes); 
+     input_wm_bytes = transform_ctx->upstream_watermark_bytes;
+  }
 
   if (toread <= input_avail) { // upstream finished
     eos = 1;
