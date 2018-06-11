@@ -169,7 +169,7 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
       } while (prtmp && strcmp(prtmp->hostname, result->hostname) == 0);
     }
   }
-  host_stat = pStatus.getHostStatus(pRec->hostname);
+  host_stat = (pRec) ? pStatus.getHostStatus(pRec->hostname) : HostStatus_t::HOST_STATUS_INIT;
   // didn't find a parent or the parent is marked unavailable.
   if ((pRec && !pRec->available) || host_stat == HOST_STATUS_DOWN) {
     do {
