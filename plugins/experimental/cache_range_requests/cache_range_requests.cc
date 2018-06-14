@@ -35,18 +35,76 @@
 #define DEBUG_LOG(fmt, ...) TSDebug(PLUGIN_NAME, "[%s:%d] %s(): " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 #define ERROR_LOG(fmt, ...) TSError("[%s:%d] %s(): " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__)
 
+typedef enum parent_select_mode {
+  PS_DEFAULT, // Default ATS parent selection mode
+  PS_CACHEKEY_URL, // Set parent selection url to cache_key url
+} parent_select_mode_t;
+
+struct pluginconfig {
+  parent_select_mode_t ps_mode;
+};
+
 struct txndata {
   char *range_value;
 };
 
 static void handle_read_request_header(TSCont, TSEvent, void *);
-static void range_header_check(TSHttpTxn txnp);
+static void range_header_check(TSHttpTxn txnp, struct pluginconfig* pc);
 static void handle_send_origin_request(TSCont, TSHttpTxn, struct txndata *);
 static void handle_client_send_response(TSHttpTxn, struct txndata *);
 static void handle_server_read_response(TSHttpTxn, struct txndata *);
 static int remove_header(TSMBuffer, TSMLoc, const char *, int);
 static bool set_header(TSMBuffer, TSMLoc, const char *, int, const char *, int);
 static void transaction_handler(TSCont, TSEvent, void *);
+static struct pluginconfig* create_pluginconfig(int argc, const char *argv[]);
+static void delete_pluginconfig(struct pluginconfig*);
+
+// pluginconfig struct (global plugin only)
+static struct pluginconfig *gPluginConfig = nullptr;
+
+/**
+ * Creates pluginconfig data structure
+ * Sets default parent url selection mode
+ * Walk plugin argument list and updates config
+ */ 
+static struct pluginconfig* 
+create_pluginconfig(int argc, const char *argv[])
+{
+  struct pluginconfig *pc = nullptr;
+  
+  pc = (struct pluginconfig*) TSmalloc(sizeof(struct pluginconfig));
+
+  if (nullptr == pc) {
+    ERROR_LOG("Can't allocate pluginconfig");
+    return nullptr;
+  }
+
+  // Plugin uses default ATS selection (hash of URL path)
+  pc->ps_mode = PS_DEFAULT;
+
+  // Walk through param list.
+  for (int c = 0; c < argc; c++) {
+    if (strcmp("ps_mode:cache_key_url", argv[c]) == 0) {
+      pc->ps_mode = PS_CACHEKEY_URL;
+      break;
+    }
+  }
+
+  return pc;
+}
+
+/**
+ * Destroy pluginconfig data stucture.
+ */
+static void 
+delete_pluginconfig(struct pluginconfig* pc)
+{
+  if (nullptr != pc) {
+    DEBUG_LOG("Delete struct pluginconfig");
+    TSfree(pc);
+    pc = nullptr;
+  }
+}
 
 /**
  * Entry point when used as a global plugin.
@@ -57,7 +115,7 @@ handle_read_request_header(TSCont txn_contp, TSEvent event, void *edata)
 {
   TSHttpTxn txnp = static_cast<TSHttpTxn>(edata);
 
-  range_header_check(txnp);
+  range_header_check(txnp, gPluginConfig);
 
   TSHttpTxnReenable(txnp, TS_EVENT_HTTP_CONTINUE);
 }
@@ -73,11 +131,11 @@ handle_read_request_header(TSCont txn_contp, TSEvent event, void *edata)
  *    and TS_HTTP_TXN_CLOSE_HOOK for further processing.
  */
 static void
-range_header_check(TSHttpTxn txnp)
+range_header_check(TSHttpTxn txnp, struct pluginconfig *pc)
 {
   char cache_key_url[8192] = {0};
   char *req_url;
-  int length, url_length;
+  int length, url_length, cache_key_url_length;
   struct txndata *txn_state;
   TSMBuffer hdr_bufp;
   TSMLoc req_hdrs = nullptr;
@@ -100,16 +158,33 @@ range_header_check(TSHttpTxn txnp)
           txn_state->range_value[length] = '\0'; // workaround for bug in core
 
           req_url = TSHttpTxnEffectiveUrlStringGet(txnp, &url_length);
-          snprintf(cache_key_url, 8192, "%s-%s", req_url, txn_state->range_value);
+          cache_key_url_length = snprintf(cache_key_url, 8192, "%s-%s", req_url, txn_state->range_value);
           DEBUG_LOG("Rewriting cache URL for %s to %s", req_url, cache_key_url);
           if (req_url != nullptr) {
             TSfree(req_url);
           }
 
           // set the cache key.
-          if (TS_SUCCESS != TSCacheUrlSet(txnp, cache_key_url, strlen(cache_key_url))) {
+          if (TS_SUCCESS != TSCacheUrlSet(txnp, cache_key_url, cache_key_url_length)) {
             DEBUG_LOG("failed to change the cache url to %s.", cache_key_url);
           }
+
+          // Optionally set the parent_selection_url to the cache_key url or path
+          if (nullptr != pc && PS_DEFAULT != pc->ps_mode) {
+            TSMLoc ps_loc = nullptr;
+
+            if (PS_CACHEKEY_URL == pc->ps_mode) {
+              const char *start = cache_key_url;
+              const char *end   = cache_key_url + cache_key_url_length;
+              if (TS_SUCCESS == TSUrlCreate(hdr_bufp, &ps_loc) && 
+                TS_PARSE_DONE == TSUrlParse(hdr_bufp, ps_loc, &start, end) &&
+                TS_SUCCESS == TSHttpTxnParentSelectionUrlSet(txnp, hdr_bufp, ps_loc) ) {
+                  DEBUG_LOG("Set Parent Selection URL to cache_key_url: %s", cache_key_url);
+                  TSHandleMLocRelease(hdr_bufp, TS_NULL_MLOC, ps_loc);
+              }
+            } 
+          }
+
           // remove the range request header.
           if (remove_header(hdr_bufp, req_hdrs, TS_MIME_FIELD_RANGE, TS_MIME_LEN_RANGE) > 0) {
             DEBUG_LOG("Removed the Range: header from the request.");
@@ -324,21 +399,31 @@ TSRemapInit(TSRemapInterface *api_info, char *errbuf, int errbuf_size)
 }
 
 /**
- * not used.
+ * New Remap instance 
  */
 TSReturnCode
 TSRemapNewInstance(int argc, char *argv[], void **ih, char * /*errbuf */, int /* errbuf_size */)
 {
+  *ih = (struct pluginconfig*) create_pluginconfig(argc, const_cast<const char **>(argv));
+
+  if (*ih == nullptr) {
+    ERROR_LOG("Can't create pluginconfig"); 
+  }
+  
   return TS_SUCCESS;
 }
 
 /**
- * not used.
+ * Delete Remap instance
  */
 void
 TSRemapDeleteInstance(void *ih)
 {
-  DEBUG_LOG("no op");
+  struct pluginconfig *pc = (struct pluginconfig *) ih;
+
+  if (nullptr != pc) {
+    delete_pluginconfig(pc);
+  } 
 }
 
 /**
@@ -347,7 +432,10 @@ TSRemapDeleteInstance(void *ih)
 TSRemapStatus
 TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo * /* rri */)
 {
-  range_header_check(txnp);
+  struct pluginconfig *pc = (struct pluginconfig *) ih;
+
+  range_header_check(txnp, pc);
+
   return TSREMAP_NO_REMAP;
 }
 
@@ -370,10 +458,15 @@ TSPluginInit(int argc, const char *argv[])
     return;
   }
 
+  if (nullptr == gPluginConfig) {
+    gPluginConfig = create_pluginconfig(argc, argv);
+  }
+
   if (nullptr == (txnp_cont = TSContCreate((TSEventFunc)handle_read_request_header, nullptr))) {
     ERROR_LOG("failed to create the transaction continuation handler.");
     return;
-  } else {
+  } 
+  else {
     TSHttpHookAdd(TS_HTTP_READ_REQUEST_HDR_HOOK, txnp_cont);
   }
 }
