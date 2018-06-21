@@ -94,9 +94,9 @@
 
 #include "tscore/ink_apidefs.h"
 #include "tscore/ink_defs.h"
-#include "HTTP.h"
+#include "hdrs/HTTP.h"
 #include "tscore/Regex.h"
-#include "URL.h"
+#include "hdrs/URL.h"
 
 #ifdef HAVE_CTYPE_H
 #include <cctype>
