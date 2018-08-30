@@ -74,6 +74,7 @@ include experimental/stale_while_revalidate/Makefile.inc
 include experimental/stream_editor/Makefile.inc
 include experimental/ts_lua/Makefile.inc
 include experimental/url_sig/Makefile.inc
+include experimental/throttle/Makefile.inc
 
 if BUILD_URI_SIGNING_PLUGIN
 include experimental/uri_signing/Makefile.inc
