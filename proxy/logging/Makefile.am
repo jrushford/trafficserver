@@ -21,7 +21,7 @@ include $(top_srcdir)/build/tidy.mk
 AM_CPPFLAGS += \
   $(iocore_include_dirs) \
   -I$(abs_top_srcdir)/lib \
-  -I$(abs_top_srcdir)/lib/luajit/src \
+  -I$(abs_top_srcdir)/lib/lua/src \
   -I$(abs_top_srcdir)/lib/records \
   -I$(abs_top_srcdir)/proxy/api/ts \
   -I$(abs_top_srcdir)/proxy \

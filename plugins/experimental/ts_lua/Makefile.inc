@@ -14,7 +14,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-experimental_ts_lua_tslua_la_CPPFLAGS = $(AM_CPPFLAGS) $(LUAJIT_CPPFLAGS)
+experimental_ts_lua_tslua_la_CPPFLAGS = $(AM_CPPFLAGS) $(LUA_CPPFLAGS)
 
 pkglib_LTLIBRARIES += experimental/ts_lua/tslua.la
 

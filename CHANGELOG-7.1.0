@@ -230,7 +230,6 @@ Changes with Apache Traffic Server 7.1.0
   #1475 - ASAN issue in traffic_manager metrics Lua bindings
   #1476 - Crash in get_client_addr()
   #1480 - Crash in Http1ClientSession::set_inactivity_timeout
-  #1494 - Allow configure option: --enable-system-luajit
   #1502 - issue #1501: reconstruct to load the default value for member variables
   #1503 - client cert should be added to netvcoptions only when needed
   #1511 - heap-use-after-free: Access ua_session after HttpTunnel::chain_abort_all called due to bad post chunked data

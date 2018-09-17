@@ -19,7 +19,7 @@
 include $(top_srcdir)/build/tidy.mk
 
 AM_CPPFLAGS += \
-  $(LUAJIT_CPPFLAGS) \
+  $(LUA_CPPFLAGS) \
   -I$(abs_top_srcdir)/lib \
   -I$(abs_top_srcdir)/lib/records
 
