@@ -91,7 +91,7 @@ TSRemapDeleteInstance(void *ih)
 	PluginDebug("Terminating instance.");
 	if (ih) {
 		/* The stats writer will clean it up on it's next run. */
-		((struct RemapThrottle*)ih)->terminated = true;
+		((struct RemapThrottle*)ih)->terminated = 1;
 	}
 }
 

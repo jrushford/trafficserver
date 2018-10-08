@@ -31,7 +31,7 @@ struct RemapThrottle {
 	unsigned int max;
 	int staletime;
 	unsigned int statfreq;
-	unsigned int terminated;
+	_Atomic unsigned int terminated;
 	_Atomic unsigned int current;
 	_Atomic unsigned int high;
 	_Atomic unsigned int req_unavailable;
