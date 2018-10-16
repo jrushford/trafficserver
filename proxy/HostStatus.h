@@ -30,9 +30,12 @@
 
 #pragma once
 
-#include "ControlBase.h"
-#include "ControlMatcher.h"
+#include <time.h>
+#include <string>
+#include "tscore/ink_rwlock.h"
 #include "records/P_RecProcess.h"
+
+#include <unordered_map>
 
 enum HostStatus_t {
   HOST_STATUS_INIT,
@@ -90,8 +93,11 @@ private:
   HostStatus(const HostStatus &obj) = delete;
   HostStatus &operator=(HostStatus const &) = delete;
 
-  InkHashTable *hosts_statuses;  // next hop status, key is hostname or ip string, data is bool (available).
-  InkHashTable *hosts_stats_ids; // next hop stat ids, key is hostname or ip string, data is int stat id.
+  // next hop status, key is hostname or ip string, data is bool (available).
+  std::unordered_map<std::string, HostStatRec_t *> hosts_statuses;
+  // next hop stat ids, key is hostname or ip string, data is int stat id.
+  std::unordered_map<std::string, int> hosts_stats_ids;
+
   ink_rwlock host_status_rwlock;
   ink_rwlock host_statids_rwlock;
 };
