@@ -16,9 +16,10 @@
  * limitations under the License.
  */
 
-#include "uri_signing.h"
+#include "common.h"
 #include "jwt.h"
 #include "match.h"
+#include "normalize.h"
 #include "ts/ts.h"
 #include <jansson.h>
 #include <cjose/cjose.h>
@@ -61,8 +62,12 @@ parse_jwt(json_t *raw)
   jwt->iat        = parse_number(json_object_get(raw, "iat"));
   jwt->jti        = json_string_value(json_object_get(raw, "jti"));
   jwt->cdniv      = parse_integer_default(json_object_get(raw, "cdniv"), 1);
+  jwt->cdnicrit   = json_string_value(json_object_get(raw, "cdnicrit"));
+  jwt->cdniip     = json_string_value(json_object_get(raw, "cdniip"));
+  jwt->cdniuc     = json_string_value(json_object_get(raw, "cdniuc"));
   jwt->cdniets    = json_integer_value(json_object_get(raw, "cdniets"));
   jwt->cdnistt    = json_integer_value(json_object_get(raw, "cdnistt"));
+  jwt->cdnistd    = parse_integer_default(json_object_get(raw, "cdnistd"), 0);
   return jwt;
 }
 
@@ -93,12 +98,6 @@ unsupported_string_claim(const char *str)
 }
 
 bool
-unsupported_date_claim(double t)
-{
-  return isnan(t);
-}
-
-bool
 jwt_validate(struct jwt *jwt)
 {
   if (!jwt) {
@@ -111,13 +110,8 @@ jwt_validate(struct jwt *jwt)
     return false;
   }
 
-  if (!jwt->sub) { /* Mandatory claim. Will be validated after key verification. */
-    PluginDebug("Initial JWT Failure: missing sub");
-    return false;
-  }
-
   if (!unsupported_string_claim(jwt->aud)) {
-    PluginDebug("Initial JWT Failure: missing sub");
+    PluginDebug("Initial JWT Failure: aud unsupported");
     return false;
   }
 
@@ -126,8 +120,13 @@ jwt_validate(struct jwt *jwt)
     return false;
   }
 
-  if (!unsupported_date_claim(jwt->nbf)) {
-    PluginDebug("Initial JWT Failure: nbf unsupported");
+  if (now() < jwt->nbf) {
+    PluginDebug("Initial JWT Failure: nbf claim violated");
+    return false;
+  }
+
+  if (!unsupported_string_claim(jwt->cdniip)) {
+    PluginDebug("Initial JWT Failure: cdniip unsupported");
     return false;
   }
 
@@ -136,8 +135,18 @@ jwt_validate(struct jwt *jwt)
     return false;
   }
 
+  if (!unsupported_string_claim(jwt->cdnicrit)) {
+    PluginDebug("Initial JWT Failure: cdnicrit unsupported");
+    return false;
+  }
+
   if (jwt->cdnistt < 0 || jwt->cdnistt > 1) {
     PluginDebug("Initial JWT Failure: unsupported value for cdnistt: %d", jwt->cdnistt);
+    return false;
+  }
+
+  if (jwt->cdnistd != 0) {
+    PluginDebug("Initial JWT Failure: unsupported value for cdnistd: %d", jwt->cdnistd);
     return false;
   }
 
@@ -145,17 +154,29 @@ jwt_validate(struct jwt *jwt)
 }
 
 bool
-jwt_check_uri(const char *sub, const char *uri)
+jwt_check_uri(const char *cdniuc, const char *uri)
 {
-  static const char CONT_URI_STR[]         = "uri";
-  static const char CONT_URI_PATTERN_STR[] = "uri-pattern";
-  static const char CONT_URI_REGEX_STR[]   = "uri-regex";
+  static const char CONT_URI_HASH_STR[]  = "hash";
+  static const char CONT_URI_REGEX_STR[] = "regex";
 
-  if (!sub || !*sub || !uri) {
+  if (!cdniuc || !*cdniuc || !uri) {
     return false;
   }
 
-  const char *kind = sub, *container = sub;
+  /* Normalize the URI */
+  int uri_ct  = strlen(uri);
+  int buff_ct = uri_ct + 2;
+  int err;
+  char normal_uri[buff_ct];
+
+  memset(normal_uri, 0, buff_ct);
+  err = normalize_uri(uri, uri_ct, normal_uri, buff_ct);
+
+  if (err) {
+    return false;
+  }
+
+  const char *kind = cdniuc, *container = cdniuc;
   while (*container && *container != ':') {
     ++container;
   }
@@ -165,23 +186,17 @@ jwt_check_uri(const char *sub, const char *uri)
   ++container;
 
   size_t len = container - kind;
-  PluginDebug("Comparing with match kind \"%.*s\" on \"%s\" to \"%s\"", (int)len - 1, kind, container, uri);
+  PluginDebug("Comparing with match kind \"%.*s\" on \"%s\" to normalized URI \"%s\"", (int)len - 1, kind, container, normal_uri);
   switch (len) {
-  case sizeof CONT_URI_STR:
-    if (!strncmp(CONT_URI_STR, kind, len - 1)) {
-      return !strcmp(container, uri);
+  case sizeof CONT_URI_HASH_STR:
+    if (!strncmp(CONT_URI_HASH_STR, kind, len - 1)) {
+      return match_hash(container, normal_uri);
     }
-    PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_STR, (int)len - 1, kind);
-    break;
-  case sizeof CONT_URI_PATTERN_STR:
-    if (!strncmp(CONT_URI_PATTERN_STR, kind, len - 1)) {
-      return match_glob(container, uri);
-    }
-    PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_PATTERN_STR, (int)len - 1, kind);
+    PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_HASH_STR, (int)len - 1, kind);
     break;
   case sizeof CONT_URI_REGEX_STR:
     if (!strncmp(CONT_URI_REGEX_STR, kind, len - 1)) {
-      return match_regex(container, uri);
+      return match_regex(container, normal_uri);
     }
     PluginDebug("Expected kind %s, but did not find it in \"%.*s\"", CONT_URI_REGEX_STR, (int)len - 1, kind);
     break;
