@@ -23,19 +23,41 @@ struct jwt {
   json_t *raw;
   const char *iss;
   const char *sub;
-  const char *aud;
+  json_t *aud;
   double exp;
   double nbf;
   double iat;
   const char *jti;
   int cdniv;
+  const char *cdnicrit;
+  const char *cdniip;
+  const char *cdniuc;
   int cdniets;
   int cdnistt;
+  int cdnistd;
+  double x1rt;
+  double x1rts;
+  const char *x1err;
+  const char *x1ctx;
 };
+
+struct redir_jwt {
+  int x1ec;
+  double iat;
+  const char *x1err;
+  const char *x1ctx;
+  const char *x1uri;
+};
+
 struct jwt *parse_jwt(json_t *raw);
+struct redir_jwt *parse_redir_jwt(struct jwt *jwt, int ec, const char *x1uri);
 void jwt_delete(struct jwt *jwt);
-bool jwt_validate(struct jwt *jwt);
-bool jwt_check_uri(const char *sub, const char *uri);
+void redir_jwt_delete(struct redir_jwt *redir_jwt);
+int jwt_validate(struct jwt *jwt);
+bool jwt_check_aud(json_t *aud, const char *id);
+bool jwt_check_uri(const char *cdniuc, const char *uri);
 
 struct _cjose_jwk_int;
 char *renew(struct jwt *jwt, const char *iss, struct _cjose_jwk_int *jwk, const char *alg, const char *package);
+char *redirect_token_url_get(const char *x1ctx, const char *x1err, const char *iss, struct _cjose_jwk_int *jwk, const char *alg,
+                             double add_nbf, double add_exp, const char *x1uri, const char *x1ec);

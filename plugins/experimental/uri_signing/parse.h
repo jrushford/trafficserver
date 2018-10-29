@@ -17,11 +17,25 @@
  */
 
 #include <stdlib.h>
+#include <stdbool.h>
 
 struct _cjose_jws_int;
-struct _cjose_jws_int *get_jws_from_query(const char *uri, size_t uri_ct, const char *paramName);
+
+struct strip_state {
+  char *strip_uri;
+  size_t strip_uri_ct;
+  int index;
+  char reserved;
+  char term;
+};
+
+struct _cjose_jws_int *get_jws_from_uri(const char *uri, size_t uri_ct, const char *paramName, size_t buff_ct,
+                                        struct strip_state *strp);
 struct _cjose_jws_int *get_jws_from_cookie(const char **cookie, size_t *cookie_ct, const char *paramName);
+void get_redirect_renew_url(struct strip_state *strp, const char *new_token, char *new_url, size_t buffer_ct);
 
 struct config;
 struct jwt;
-struct jwt *validate_jws(struct _cjose_jws_int *jws, struct config *cfg, const char *uri, size_t uri_ct);
+struct jwt *validate_jws(struct _cjose_jws_int *jws, struct config *cfg, const char *uri, size_t uri_ct, int *rc);
+struct strip_state *strip_state_new(size_t buffer_ct);
+void strip_state_delete(struct strip_state *strp);
