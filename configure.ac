@@ -1336,7 +1336,9 @@ AC_CHECK_HEADERS([cjose/cjose.h], [
   [LIBCJOSE=])
 AC_CHECK_LIB([crypto],[HMAC],[has_libcrypto=1],[has_libcrypto=0])
 
-AM_CONDITIONAL([BUILD_URI_SIGNING_PLUGIN], [test ! -z "${LIBCJOSE}" -a ! -z "${LIBJANSSON}" -a "x${enable_pcre}" = "xyes" -a "x${has_libcrypto}" = "x1"])
+AC_CHECK_LIB([uuid],main,[has_libuuid=1],[has_libuuid=0])
+
+AM_CONDITIONAL([BUILD_URI_SIGNING_PLUGIN], [test ! -z "${LIBCJOSE}" -a ! -z "${LIBJANSSON}" -a "x${enable_pcre}" = "xyes" -a "x${has_libcrypto}" = "x1" -a "x${has_libuuid}" = "x1"])
 AC_SUBST([LIBCJOSE])
 AC_SUBST([LIBJANSSON])
 

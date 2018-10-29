@@ -16,12 +16,10 @@
  * limitations under the License.
  */
 
-#include "uri_signing.h"
+#include "common.h"
 #include "config.h"
 #include "timing.h"
 #include "jwt.h"
-
-#include <ts/ts.h>
 
 #include <cjose/cjose.h>
 #include <jansson.h>
@@ -45,6 +43,10 @@ struct config {
   char **issuer_names;
   struct signer signer;
   struct auth_directive *auth_directives;
+  char *id;
+  double redir_add_nbf;
+  double redir_add_exp;
+  bool strip_token;
 };
 
 cjose_jwk_t **
@@ -80,24 +82,48 @@ find_key_by_kid(struct config *cfg, const char *issuer, const char *kid)
   return NULL;
 }
 
+const char *
+config_get_id(struct config *cfg)
+{
+  return cfg->id;
+}
+
+double
+config_get_redir_add_nbf(struct config *cfg)
+{
+  return cfg->redir_add_nbf;
+}
+
+double
+config_get_redir_add_exp(struct config *cfg)
+{
+  return cfg->redir_add_exp;
+}
+
+bool
+config_strip_token(struct config *cfg)
+{
+  return cfg->strip_token;
+}
+
 struct config *
 config_new(size_t n)
 {
   PluginDebug("Creating new config object with size %ld", n);
-  struct config *cfg = malloc(sizeof *cfg);
+  struct config *cfg = TSmalloc(sizeof *cfg);
 
   cfg->issuers = calloc(1, sizeof *cfg->issuers);
   if (!hcreate_r(n * 2, cfg->issuers)) {
     PluginError("Unable to create config table (%d)!", errno);
-    free(cfg);
+    TSfree(cfg);
     return NULL;
   }
   PluginDebug("Created table with size %d", cfg->issuers->size);
 
-  cfg->jwkis    = malloc((n + 1) * sizeof *cfg->jwkis);
+  cfg->jwkis    = TSmalloc((n + 1) * sizeof *cfg->jwkis);
   cfg->jwkis[n] = NULL;
 
-  cfg->issuer_names    = malloc((n + 1) * sizeof *cfg->issuer_names);
+  cfg->issuer_names    = TSmalloc((n + 1) * sizeof *cfg->issuer_names);
   cfg->issuer_names[n] = NULL;
 
   cfg->signer.issuer = NULL;
@@ -105,6 +131,12 @@ config_new(size_t n)
   cfg->signer.alg    = NULL;
 
   cfg->auth_directives = NULL;
+  cfg->id              = NULL;
+
+  cfg->redir_add_nbf = 0;
+  cfg->redir_add_exp = 0;
+
+  cfg->strip_token = false;
 
   PluginDebug("New config object created at %p", cfg);
   return cfg;
@@ -117,31 +149,36 @@ config_delete(struct config *cfg)
     return;
   }
   hdestroy_r(cfg->issuers);
+  TSfree(cfg->issuers);
 
   for (cjose_jwk_t ***jwkis = cfg->jwkis; *jwkis; ++jwkis) {
     for (cjose_jwk_t **jwks = *jwkis; *jwks; ++jwks) {
       cjose_jwk_release(*jwks);
     }
-    free(*jwkis);
+    TSfree(*jwkis);
   }
-  free(cfg->jwkis);
+  TSfree(cfg->jwkis);
+
+  if (cfg->id) {
+    TSfree(cfg->id);
+  }
 
   for (char **name = cfg->issuer_names; *name; ++name) {
-    free(*name);
+    TSfree(*name);
   }
-  free(cfg->issuer_names);
+  TSfree(cfg->issuer_names);
 
   if (cfg->signer.alg) {
-    free(cfg->signer.alg);
+    TSfree(cfg->signer.alg);
   }
 
   if (cfg->auth_directives) {
     for (struct auth_directive *ad = cfg->auth_directives; ad->container; ++ad) {
-      free(ad->container);
+      TSfree(ad->container);
     }
-    free(cfg->auth_directives);
+    TSfree(cfg->auth_directives);
   }
-  free(cfg);
+  TSfree(cfg);
 }
 
 cjose_jwk_t *
@@ -154,7 +191,7 @@ load_jwk(json_t *obj, cjose_err *err)
   }
 
   cjose_jwk_t *jwk = cjose_jwk_import(s, strlen(s), err);
-  free(s);
+  TSfree(s);
   return jwk;
 }
 
@@ -211,7 +248,7 @@ read_config(const char *path)
           cfg->auth_directives = realloc(cfg->auth_directives, (ad_ct + ad_old_ct + 1) * sizeof *cfg->auth_directives);
           ad                   = cfg->auth_directives + ad_old_ct;
         } else {
-          ad = cfg->auth_directives = malloc((ad_ct + 1) * sizeof *cfg->auth_directives);
+          ad = cfg->auth_directives = TSmalloc((ad_ct + 1) * sizeof *cfg->auth_directives);
         }
         json_t *ad_obj;
         for (size_t idx = 0; (idx < ad_ct) && (ad_obj = json_array_get(ad_json, idx)); ++idx, ++ad) {
@@ -259,8 +296,38 @@ read_config(const char *path)
       renewal_kid = json_string_value(renewal_kid_json);
     }
 
+    json_t *id_json = json_object_get(jwks, "id");
+    const char *id;
+    if (id_json) {
+      id = json_string_value(id_json);
+      if (id) {
+        cfg->id = TSmalloc(strlen(id) + 1);
+        strcpy(cfg->id, id);
+        PluginDebug("Found Id in the config: %s", cfg->id);
+      }
+    }
+    json_decref(id_json);
+
+    json_t *exp_json = json_object_get(jwks, "redir_add_exp");
+    if (exp_json) {
+      cfg->redir_add_exp = json_number_value(exp_json);
+      json_decref(exp_json);
+    }
+
+    json_t *nbf_json = json_object_get(jwks, "redir_add_nbf");
+    if (nbf_json) {
+      cfg->redir_add_nbf = json_number_value(nbf_json);
+      json_decref(nbf_json);
+    }
+
+    json_t *strip_json = json_object_get(jwks, "strip_token");
+    if (strip_json) {
+      cfg->strip_token = json_boolean_value(strip_json);
+      json_decref(strip_json);
+    }
+
     size_t jwks_ct     = json_array_size(key_ary);
-    cjose_jwk_t **jwks = (*jwkis++ = malloc((jwks_ct + 1) * sizeof *jwks));
+    cjose_jwk_t **jwks = (*jwkis++ = TSmalloc((jwks_ct + 1) * sizeof *jwks));
     PluginDebug("Created table with size %d", cfg->issuers->size);
     if (!hsearch_r(((ENTRY){(char *)*issuer, jwks}), ENTER, &(ENTRY *){0}, cfg->issuers)) {
       PluginDebug("Failed to store keys for issuer %s", *issuer);
@@ -330,15 +397,15 @@ uri_matches_auth_directive(struct config *cfg, const char *uri, size_t uri_ct)
     return false;
   }
 
-  char *uri_s = malloc(uri_ct + 1);
+  char *uri_s = TSmalloc(uri_ct + 1);
   memcpy(uri_s, uri, uri_ct);
   uri_s[uri_ct] = 0;
   for (const struct auth_directive *ad = cfg->auth_directives; ad->container; ++ad) {
     if (jwt_check_uri(ad->container, uri_s)) {
-      free(uri_s);
+      TSfree(uri_s);
       return (ad->auth == AUTH_ALLOW);
     }
   }
-  free(uri_s);
+  TSfree(uri_s);
   return false;
 }
