@@ -413,7 +413,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
   int numTok          = 0;
   const char *current = nullptr;
   int port            = 0;
-  char *tmp = nullptr, *tmp2 = nullptr;
+  char *tmp = nullptr, *tmp2 = nullptr, *tmp3 = nullptr;
   const char *errPtr = nullptr;
   float weight       = 1.0;
 
@@ -466,23 +466,27 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       }
     }
 
+    tmp3 = (char *)strchr(current, '&');
+
     // Make sure that is no garbage beyond the parent
-    //   port or weight
-    char *scan;
-    if (tmp2) {
-      scan = tmp2 + 1;
-    } else {
-      scan = tmp + 1;
-    }
-    for (; *scan != '\0' && (ParseRules::is_digit(*scan) || *scan == '.'); scan++) {
-      ;
-    }
-    for (; *scan != '\0' && ParseRules::is_wslfcr(*scan); scan++) {
-      ;
-    }
-    if (*scan != '\0') {
-      errPtr = "Garbage trailing entry or invalid separator";
-      goto MERROR;
+    //  port or weight
+    if (!tmp3) {
+      char *scan;
+      if (tmp2) {
+        scan = tmp2 + 1;
+      } else {
+        scan = tmp + 1;
+      }
+      for (; *scan != '\0' && (ParseRules::is_digit(*scan) || *scan == '.'); scan++) {
+        ;
+      }
+      for (; *scan != '\0' && ParseRules::is_wslfcr(*scan); scan++) {
+        ;
+      }
+      if (*scan != '\0') {
+        errPtr = "Garbage trailing entry or invalid separator";
+        goto MERROR;
+      }
     }
     // Check to make sure that the string will fit in the
     //  pRecord
@@ -505,6 +509,10 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->parents[i].name                    = this->parents[i].hostname;
       this->parents[i].available               = true;
       this->parents[i].weight                  = weight;
+      if (tmp3) {
+        memcpy(this->parents[i].hash_string, tmp3 + 1, strlen(tmp3));
+        this->parents[i].name = this->parents[i].hash_string;
+      }
       hs.createHostStat(this->parents[i].hostname);
     } else {
       memcpy(this->secondary_parents[i].hostname, current, tmp - current);
@@ -517,8 +525,13 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->secondary_parents[i].name                    = this->secondary_parents[i].hostname;
       this->secondary_parents[i].available               = true;
       this->secondary_parents[i].weight                  = weight;
+      if (tmp3) {
+        memcpy(this->parents[i].hash_string, tmp3 + 1, strlen(tmp3));
+        this->parents[i].name = this->parents[i].hash_string;
+      }
       hs.createHostStat(this->secondary_parents[i].hostname);
     }
+    tmp3 = nullptr;
   }
 
   if (isPrimary) {
@@ -803,7 +816,7 @@ ParentRecord::Print()
 {
   printf("\t\t");
   for (int i = 0; i < num_parents; i++) {
-    printf(" %s:%d ", parents[i].hostname, parents[i].port);
+    printf(" %s:%d|%f&%s ", parents[i].hostname, parents[i].port, parents[i].weight, parents[i].hash_string);
   }
   printf(" direct=%s\n", (go_direct == true) ? "true" : "false");
   printf(" parent_is_proxy=%s\n", (parent_is_proxy == true) ? "true" : "false");
