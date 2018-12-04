@@ -526,8 +526,8 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->secondary_parents[i].available               = true;
       this->secondary_parents[i].weight                  = weight;
       if (tmp3) {
-        memcpy(this->parents[i].hash_string, tmp3 + 1, strlen(tmp3));
-        this->parents[i].name = this->parents[i].hash_string;
+        memcpy(this->secondary_parents[i].hash_string, tmp3 + 1, strlen(tmp3));
+        this->secondary_parents[i].name = this->secondary_parents[i].hash_string;
       }
       hs.createHostStat(this->secondary_parents[i].hostname);
     }
@@ -816,7 +816,7 @@ ParentRecord::Print()
 {
   printf("\t\t");
   for (int i = 0; i < num_parents; i++) {
-    printf(" %s:%d|%f&%s ", parents[i].hostname, parents[i].port, parents[i].weight, parents[i].hash_string);
+    printf(" %s:%d|%f&%s ", parents[i].hostname, parents[i].port, parents[i].weight, parents[i].name);
   }
   printf(" direct=%s\n", (go_direct == true) ? "true" : "false");
   printf(" parent_is_proxy=%s\n", (parent_is_proxy == true) ? "true" : "false");
@@ -1731,6 +1731,46 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   FP;
   sleep(1);
   RE(verify(result, PARENT_FAIL, nullptr, 80), 208);
+
+  // Tests 209 through 211 test that host selection is based upon the hash_string
+
+  // Test 209
+  // fuzzy { curly larry, moe } fluffy
+  tbl[0] = '\0';
+  ST(209);
+  T("dest_domain=stooges.net parent=curly:80|1.0&myhash;joe:80|1.0&hishash;larry:80|1.0&ourhash "
+    "round_robin=consistent_hash go_direct=false\n");
+  REBUILD;
+  REINIT;
+  br(request, "i.am.stooges.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "larry", 80), 209);
+
+  // Test 210
+  // fuzzy { curly larry, moe } fluffy
+  tbl[0] = '\0';
+  ST(210);
+  T("dest_domain=stooges.net parent=curly:80|1.0&ourhash;joe:80|1.0&hishash;larry:80|1.0&myhash "
+    "round_robin=consistent_hash go_direct=false\n");
+  REBUILD;
+  REINIT;
+  br(request, "i.am.stooges.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "curly", 80), 210);
+
+  // Test 211
+  // fuzzy { curly larry, moe } fluffy
+  tbl[0] = '\0';
+  ST(211);
+  T("dest_domain=stooges.net parent=curly:80|1.0&ourhash;joe:80|1.0&hishash;larry:80|1.0&myhash "
+    "secondary_parent=carol:80|1.0&ourhash;betty:80|1.0&hishash;donna:80|1.0&myhash "
+    "round_robin=consistent_hash go_direct=false\n");
+  REBUILD;
+  REINIT;
+  _st.setHostStatus("curly", HOST_STATUS_DOWN, 0, Reasons::MANUAL);
+  br(request, "i.am.stooges.net");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "carol", 80), 211);
 
   delete request;
   delete result;
