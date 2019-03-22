@@ -21,8 +21,9 @@ After=syslog.target network.target
 
 [Service]
 Type=simple
+Environment=LUA_CPATH=/opt/trafficserver/lua/crypto.so
 EnvironmentFile=-/etc/sysconfig/trafficserver
-ExecStart=@exp_bindir@/traffic_manager $TM_DAEMON_ARGS
+ExecStart=@exp_bindir@/traffic_manager --bind_stdout @exp_logdir@/traffic.out --bind_stderr @exp_logdir@/traffic.out $TM_DAEMON_ARGS
 Restart=on-failure
 RestartSec=5s
 LimitNOFILE=1000000
