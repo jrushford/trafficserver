@@ -1,6 +1,6 @@
 /** @file
 
-  Implementation of Host Proxy routing
+  Implementation of HostStatus
 
   @section license License
 
@@ -31,7 +31,7 @@ getStatName(std::string &stat_name, const char *name, const char *reason)
   stat_name = stat_prefix + name + "_";
 
   if (reason == nullptr) {
-    stat_name += Reasons::MANUAL;
+    stat_name += Reason::MANUAL.reason;
   } else {
     stat_name += reason;
   }
@@ -43,18 +43,28 @@ mgmt_host_status_up_callback(ts::MemSpan span)
   MgmtInt op;
   MgmtMarshallString name;
   MgmtMarshallInt down_time;
-  MgmtMarshallString reason;
+  MgmtMarshallString reason_str;
   std::string reason_stat;
   char *data                             = static_cast<char *>(span.data());
   auto len                               = span.size();
   static const MgmtMarshallType fields[] = {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT};
-  Debug("host_statuses", "%s:%s:%d - data: %s, len: %ld\n", __FILE__, __func__, __LINE__, data, len);
 
-  if (mgmt_message_parse(data, len, fields, countof(fields), &op, &name, &reason, &down_time) == -1) {
-    Error("Plugin message - RPC parsing error - message discarded.");
+  Debug("host_statuses", "data: %s, len: %ld\n", data, len);
+
+  if (mgmt_message_parse(data, len, fields, countof(fields), &op, &name, &reason_str, &down_time) == -1) {
+    Error("[HostStatus] - RPC parsing error - message discarded.");
+    return;
   }
+
+  const HostStatusReason *reason = Reason::getReason(reason_str);
+  if (reason == nullptr) {
+    Error("[HostStatus] - Invalid reason %s - message discarded.", reason_str);
+    return;
+  }
+
   Debug("host_statuses", "op: %ld, name: %s, down_time: %d, reason: %s", static_cast<long>(op), name, static_cast<int>(down_time),
-        reason);
+        reason->reason);
+
   if (data != nullptr) {
     Debug("host_statuses", "marking up server %s", data);
     HostStatus &hs = HostStatus::instance();
@@ -71,18 +81,27 @@ mgmt_host_status_down_callback(ts::MemSpan span)
   MgmtInt op;
   MgmtMarshallString name;
   MgmtMarshallInt down_time;
-  MgmtMarshallString reason;
+  MgmtMarshallString reason_str;
   std::string reason_stat;
   char *data                             = static_cast<char *>(span.data());
   auto len                               = span.size();
   static const MgmtMarshallType fields[] = {MGMT_MARSHALL_INT, MGMT_MARSHALL_STRING, MGMT_MARSHALL_STRING, MGMT_MARSHALL_INT};
-  Debug("host_statuses", "%s:%s:%d - data: %s, len: %ld\n", __FILE__, __func__, __LINE__, data, len);
 
-  if (mgmt_message_parse(data, len, fields, countof(fields), &op, &name, &reason, &down_time) == -1) {
+  Debug("host_statuses", "data: %s, len: %ld\n", data, len);
+
+  if (mgmt_message_parse(data, len, fields, countof(fields), &op, &name, &reason_str, &down_time) == -1) {
     Error("Plugin message - RPC parsing error - message discarded.");
+    return;
   }
+
+  const HostStatusReason *reason = Reason::getReason(reason_str);
+  if (reason == nullptr) {
+    Error("[HostStatus] - Invalid reason %s - message discarded.", reason_str);
+    return;
+  }
+
   Debug("host_statuses", "op: %ld, name: %s, down_time: %d, reason: %s", static_cast<long>(op), name, static_cast<int>(down_time),
-        reason);
+        reason->reason);
 
   if (data != nullptr) {
     Debug("host_statuses", "marking down server %s", name);
@@ -99,7 +118,7 @@ handle_record_read(const RecRecord *rec, void *edata)
 {
   HostStatus &hs = HostStatus::instance();
   std::string hostname;
-  std::string reason;
+  std::string reason_str;
 
   if (rec) {
     // parse the hostname from the stat name
@@ -108,16 +127,22 @@ handle_record_read(const RecRecord *rec, void *edata)
     s += strlen(stat_prefix.c_str());
     hostname = s;
     // parse the reason from the stat name.
-    reason = hostname.substr(hostname.find('_'));
-    reason.erase(0, 1);
+    reason_str = hostname.substr(hostname.find('_'));
+    reason_str.erase(0, 1);
     // erase the reason tag
     hostname.erase(hostname.find('_'));
 
     // if the data loaded from stats indicates that the host was down,
     // then update the state so that the host remains down until
     // specificcaly marked up using traffic_ctl.
-    if (rec->data.rec_int == 0 && Reasons::validReason(reason.c_str())) {
-      hs.setHostStatus(hostname.c_str(), HOST_STATUS_DOWN, 0, reason.c_str());
+    if (rec->data.rec_int == 0 && Reason::validReason(reason_str.c_str())) {
+      const HostStatusReason *reason = Reason::getReason(reason_str.c_str());
+      if (reason == nullptr) {
+        Error("[HostStatus] - Invalid reason %s - message discarded.", reason_str.c_str());
+        return;
+      }
+
+      hs.setHostStatus(hostname.c_str(), HOST_STATUS_DOWN, 0, reason);
     }
   }
 }
@@ -150,11 +175,11 @@ HostStatus::loadHostStatusFromStats()
 }
 
 void
-HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned int down_time, const char *reason)
+HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned int down_time, const HostStatusReason *reason)
 {
   std::string reason_stat;
 
-  getStatName(reason_stat, name, reason);
+  getStatName(reason_stat, name, reason->reason);
 
   if (getHostStatId(reason_stat.c_str()) == -1) {
     createHostStat(name);
@@ -188,6 +213,7 @@ HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned 
   }
   host_stat->status    = status;
   host_stat->down_time = down_time;
+  host_stat->reason    = reason;
   if (status == HostStatus_t::HOST_STATUS_DOWN) {
     host_stat->marked_down = time(0);
   } else {
@@ -203,7 +229,7 @@ HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned 
   }
 }
 
-HostStatus_t
+HostStatRec_t *
 HostStatus::getHostStatus(const char *name)
 {
   HostStatRec_t *_status = 0;
@@ -223,11 +249,11 @@ HostStatus::getHostStatus(const char *name)
     if ((_status->down_time + _status->marked_down) < now) {
       Debug("host_statuses", "name: %s, now: %ld, down_time: %d, marked_down: %ld", name, now, _status->down_time,
             _status->marked_down);
-      setHostStatus(name, HostStatus_t::HOST_STATUS_UP, 0, nullptr);
-      return HostStatus_t::HOST_STATUS_UP;
+      setHostStatus(name, HostStatus_t::HOST_STATUS_UP, 0, &Reason::MANUAL);
+      return _status;
     }
   }
-  return lookup ? static_cast<HostStatus_t>(_status->status) : HostStatus_t::HOST_STATUS_INIT;
+  return lookup ? _status : nullptr;
 }
 
 void
@@ -235,7 +261,7 @@ HostStatus::createHostStat(const char *name)
 {
   ink_rwlock_wrlock(&host_statids_rwlock);
   {
-    for (const char *i : Reasons::reasons) {
+    for (const char *i : Reason::reasons) {
       std::string reason_stat;
       getStatName(reason_stat, name, i);
       if (hosts_stats_ids.find(reason_stat) == hosts_stats_ids.end()) {

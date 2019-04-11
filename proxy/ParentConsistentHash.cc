@@ -136,7 +136,8 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
   uint32_t last_lookup;
   pRecord *prtmp = nullptr, *pRec = nullptr;
   HostStatus &pStatus    = HostStatus::instance();
-  HostStatus_t host_stat = HostStatus_t::HOST_STATUS_INIT;
+  HostStatus_t host_stat = HostStatus_t::HOST_STATUS_UP;
+  HostStatRec_t *hst     = nullptr;
 
   Debug("parent_select", "ParentConsistentHash::%s(): Using a consistent hash parent selection strategy.", __func__);
   ink_assert(numParents(result) > 0 || result->rec->go_direct == true);
@@ -196,7 +197,8 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
       pRec = nullptr;
     }
     if (firstCall) {
-      result->first_choice_status = (pRec) ? pStatus.getHostStatus(pRec->hostname) : HostStatus_t::HOST_STATUS_INIT;
+      hst                         = (pRec) ? pStatus.getHostStatus(pRec->hostname) : nullptr;
+      result->first_choice_status = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
       break;
     }
   } while (pRec && !firstCall && last_lookup == PRIMARY && strcmp(pRec->hostname, result->hostname) == 0);
@@ -208,7 +210,15 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
   // ----------------------------------------------------------------------------------------------------
 
   // didn't find a parent or the parent is marked unavailable or the parent is marked down
-  host_stat = (pRec) ? pStatus.getHostStatus(pRec->hostname) : HostStatus_t::HOST_STATUS_INIT;
+  hst       = (pRec) ? pStatus.getHostStatus(pRec->hostname) : nullptr;
+  host_stat = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
+  // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
+  // ignore the down status and mark it as avaialble
+  if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
+    if (*(hst->reason) == Reason::SELF_DETECT) {
+      host_stat = HOST_STATUS_UP;
+    }
+  }
   if (!pRec || (pRec && !pRec->available) || host_stat == HOST_STATUS_DOWN) {
     if (firstCall) {
       result->chash_init[PRIMARY]   = false;
@@ -284,7 +294,16 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
         Debug("parent_select", "No available parents.");
         break;
       }
-      host_stat = (pRec) ? pStatus.getHostStatus(pRec->hostname) : HostStatus_t::HOST_STATUS_INIT;
+
+      hst       = (pRec) ? pStatus.getHostStatus(pRec->hostname) : nullptr;
+      host_stat = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
+      // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
+      // ignore the down status and mark it as avaialble
+      if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
+        if (*(hst->reason) == Reason::SELF_DETECT) {
+          host_stat = HOST_STATUS_UP;
+        }
+      }
     } while (!pRec || !pRec->available || host_stat == HOST_STATUS_DOWN);
   }
 
@@ -295,7 +314,15 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
   // ----------------------------------------------------------------------------------------------------
 
   // use the available or marked for retry parent.
-  host_stat = (pRec) ? pStatus.getHostStatus(pRec->hostname) : HostStatus_t::HOST_STATUS_INIT;
+  hst       = (pRec) ? pStatus.getHostStatus(pRec->hostname) : nullptr;
+  host_stat = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
+  // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
+  // ignore the down status and mark it as avaialble
+  if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
+    if (*(hst->reason) == Reason::SELF_DETECT) {
+      host_stat = HOST_STATUS_UP;
+    }
+  }
   if (pRec && host_stat == HOST_STATUS_UP && (pRec->available || result->retry)) {
     result->result      = PARENT_SPECIFIED;
     result->hostname    = pRec->hostname;

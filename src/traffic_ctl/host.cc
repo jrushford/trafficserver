@@ -33,7 +33,7 @@ CtrlEngine::status_get()
     TSMgmtError error;
     std::string str = stat_prefix + it;
 
-    for (const char *_reason_tag : Reasons::reasons) {
+    for (const char *_reason_tag : Reason::reasons) {
       std::string _stat = str + "_" + _reason_tag;
       error             = record.fetch(_stat.c_str());
       if (error != TS_ERR_OKAY) {
@@ -57,10 +57,10 @@ CtrlEngine::status_down()
 
   // if reason is not set, set it to manual (default)
   if (reason.empty()) {
-    reason = Reasons::MANUAL;
+    reason = Reason::MANUAL.reason;
   }
 
-  if (!Reasons::validReason(reason.c_str())) {
+  if (!Reason::validReason(reason.c_str())) {
     fprintf(stderr, "\nInvalid reason: '%s'\n\n", reason.c_str());
     parser.help_message();
   }
@@ -82,10 +82,10 @@ CtrlEngine::status_up()
 
   // if reason is not set, set it to manual (default)
   if (reason.empty()) {
-    reason = Reasons::MANUAL;
+    reason = Reason::MANUAL.reason;
   }
 
-  if (!Reasons::validReason(reason.c_str())) {
+  if (!Reason::validReason(reason.c_str())) {
     fprintf(stderr, "\nInvalid reason: '%s'\n\n", reason.c_str());
     parser.help_message();
   }

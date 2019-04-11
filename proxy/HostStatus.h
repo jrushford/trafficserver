@@ -43,31 +43,117 @@ enum HostStatus_t {
   HOST_STATUS_UP,
 };
 
+enum StatusReason_t {
+  R_ACTIVE = 1,
+  R_LOCAL,
+  R_MANUAL,
+  R_SELF_DETECT,
+};
+
+/**
+ * Host Status Reasons
+ */
+struct HostStatusReason {
+  static constexpr const char *active      = "active";
+  static constexpr const char *local       = "local";
+  static constexpr const char *manual      = "manual";
+  static constexpr const char *self_detect = "self_detect";
+
+  // defaults to manual
+  const char *reason               = manual;
+  const StatusReason_t reason_code = R_MANUAL;
+
+  HostStatusReason(){};
+
+  constexpr HostStatusReason(StatusReason_t r) : reason_code(r)
+  {
+    switch (r) {
+    case R_ACTIVE:
+      reason = active;
+      break;
+    case R_LOCAL:
+      reason = local;
+      break;
+    case R_MANUAL:
+      reason = manual;
+      break;
+    case R_SELF_DETECT:
+      reason = self_detect;
+      break;
+    }
+  }
+
+  bool
+  operator==(const HostStatusReason &rhs)
+  {
+    return this->reason_code == rhs.reason_code;
+  }
+
+  friend bool
+  operator==(const HostStatusReason &lhs, const HostStatusReason &rhs)
+  {
+    return lhs.reason_code == rhs.reason_code;
+  }
+};
+
 struct HostStatRec_t {
   HostStatus_t status;
   time_t marked_down;     // the time that this host was marked down.
   unsigned int down_time; // number of seconds that the host should be down, 0 is indefinately
+  const HostStatusReason *reason;
 };
 
-struct Reasons {
-  static constexpr const char *ACTIVE      = "active";
-  static constexpr const char *LOCAL       = "local";
-  static constexpr const char *MANUAL      = "manual";
-  static constexpr const char *SELF_DETECT = "self_detect";
+namespace Reason
+{
+static constexpr const char *reasons[4] = {HostStatusReason::active, HostStatusReason::local, HostStatusReason::manual,
+                                           HostStatusReason::self_detect};
 
-  static constexpr const char *reasons[4] = {ACTIVE, LOCAL, MANUAL, SELF_DETECT};
+static constexpr const HostStatusReason ACTIVE(R_ACTIVE);
+static constexpr const HostStatusReason LOCAL(R_LOCAL);
+static constexpr const HostStatusReason MANUAL(R_MANUAL);
+static constexpr const HostStatusReason SELF_DETECT(R_SELF_DETECT);
 
-  static bool
-  validReason(const char *reason)
-  {
-    for (const char *i : reasons) {
-      if (strcmp(i, reason) == 0) {
-        return true;
-      }
+inline bool
+validReason(const char *reason)
+{
+  for (const char *i : reasons) {
+    if (strcmp(i, reason) == 0) {
+      return true;
     }
-    return false;
   }
-};
+  return false;
+}
+
+inline const HostStatusReason *
+getReason(const char *r)
+{
+  if (strcmp(r, HostStatusReason::active) == 0) {
+    return &ACTIVE;
+  } else if (strcmp(r, HostStatusReason::local) == 0) {
+    return &LOCAL;
+  } else if (strcmp(r, HostStatusReason::manual) == 0) {
+    return &MANUAL;
+  } else if (strcmp(r, HostStatusReason::self_detect) == 0) {
+    return &SELF_DETECT;
+  }
+  return nullptr;
+}
+
+inline const HostStatusReason *
+getReason(const StatusReason_t r)
+{
+  if (r == R_ACTIVE) {
+    return &ACTIVE;
+  } else if (r == R_LOCAL) {
+    return &LOCAL;
+  } else if (r == R_MANUAL) {
+    return &MANUAL;
+  } else if (r == R_SELF_DETECT) {
+    return &SELF_DETECT;
+  }
+  return nullptr;
+}
+} // namespace Reason
 
 static const std::string stat_prefix = "proxy.process.host_status.";
 
@@ -83,8 +169,8 @@ struct HostStatus {
     static HostStatus instance;
     return instance;
   }
-  void setHostStatus(const char *name, const HostStatus_t status, const unsigned int down_time, const char *reason);
-  HostStatus_t getHostStatus(const char *name);
+  void setHostStatus(const char *name, const HostStatus_t status, const unsigned int down_time, const HostStatusReason *reason);
+  HostStatRec_t *getHostStatus(const char *name);
   void createHostStat(const char *name);
   void loadHostStatusFromStats();
   int getHostStatId(const char *name);
