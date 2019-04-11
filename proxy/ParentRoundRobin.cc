@@ -136,7 +136,16 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
   // Loop through the array of parent seeing if any are up or
   //   should be retried
   do {
-    host_stat = pStatus.getHostStatus(parents[cur_index].hostname);
+    HostStatRec_t *hst = pStatus.getHostStatus(parents[cur_index].hostname);
+    host_stat          = (hst) ? hst->status : HOST_STATUS_UP;
+
+    // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
+    // ignore the down status and mark it as avaialble
+    if (result->rec->ignore_self_detect && (hst && hst->status == HOST_STATUS_DOWN)) {
+      if (*(hst->reason) == Reason::SELF_DETECT) {
+        host_stat = HOST_STATUS_UP;
+      }
+    }
     Debug("parent_select", "cur_index: %d, result->start_parent: %d", cur_index, result->start_parent);
     // DNS ParentOnly inhibits bypassing the parent so always return that t
     if ((parents[cur_index].failedAt == 0) || (parents[cur_index].failCount < static_cast<int>(fail_threshold))) {
