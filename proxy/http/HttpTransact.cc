@@ -2264,7 +2264,7 @@ HttpTransact::HandleCacheOpenReadHitFreshness(State *s)
   CacheHTTPInfo *&obj = s->cache_info.object_read;
 
   // debug - removing this assert, I dont think its necessary and want to see if this allows everything to function
-  //ink_release_assert((s->request_sent_time == UNDEFINED_TIME) && (s->response_received_time == UNDEFINED_TIME));
+  // ink_release_assert((s->request_sent_time == UNDEFINED_TIME) && (s->response_received_time == UNDEFINED_TIME));
   TxnDebug("http_seq", "[HttpTransact::HandleCacheOpenReadHitFreshness] Hit in cache");
 
   if (delete_all_document_alternates_and_return(s, true)) {
@@ -2349,7 +2349,7 @@ HttpTransact::CallOSDNSLookup(State *s)
   HostStatus &pstatus = HostStatus::instance();
   if (pstatus.getHostStatus(s->server_info.name) == HostStatus_t::HOST_STATUS_DOWN) {
     TxnDebug("http", "[HttpTransact::callos] %d ", s->cache_lookup_result);
-    s->current.state     = OUTBOUND_CONGESTION;
+    s->current.state = CONNECTION_ERROR;
     if (s->cache_lookup_result == CACHE_LOOKUP_HIT_STALE || s->cache_lookup_result == CACHE_LOOKUP_HIT_WARNING ||
         s->cache_lookup_result == CACHE_LOOKUP_HIT_FRESH) {
       s->cache_info.action = CACHE_DO_SERVE;
@@ -2794,7 +2794,7 @@ HttpTransact::build_response_from_cache(State *s, HTTPWarningCode warning_code)
           if (s->force_dns) {
             HandleCacheOpenReadMiss(s); // DNS is already completed no need of doing DNS
           } else {
-             CallOSDNSLookup(s);
+            CallOSDNSLookup(s);
           }
           return;
         }
