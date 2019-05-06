@@ -136,7 +136,7 @@ response_callback(TSCont cont, TSEvent event, void *edata)
 
   TSHttpTxn txn                  = (TSHttpTxn)edata;
   struct txn_data *callback_data = TSContDataGet(cont);
-  
+
   TSMBuffer buffer;
   TSMLoc hdr;
 
@@ -146,7 +146,6 @@ response_callback(TSCont cont, TSEvent event, void *edata)
 
   /* Check to see if response is 410 if jwt is included in txn_data */
   if (callback_data->jwt) {
-
     if (TSHttpHdrStatusGet(buffer, hdr) == 410) {
       char *re_tok_url =
         redirect_token_url_get(callback_data->jwt->x1ctx, callback_data->jwt->x1err, callback_data->config_signer->issuer,
@@ -204,7 +203,6 @@ response_callback(TSCont cont, TSEvent event, void *edata)
   }
 
   if (callback_data->cookie) {
-
     TSMLoc cook_field;
     if (TSMimeHdrFieldCreateNamed(buffer, hdr, "Set-Cookie", 10, &cook_field) != TS_SUCCESS) {
       TSHandleMLocRelease(buffer, TS_NULL_MLOC, hdr);
@@ -278,7 +276,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
 
   cjose_jws_t *jws = get_jws_from_uri(url, url_ct, package, url_ct + 1, strp);
 
-  if((int)strp->strip_uri_ct != url_ct) {
+  if ((int)strp->strip_uri_ct != url_ct) {
     url_tok = true;
   }
 
@@ -328,7 +326,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
     /* Strip the token from the URL for upstream if configured to do so.
      * The uri to use is the remapped URL and not the Pristine URL. */
     if (config_strip_token((struct config *)ih)) {
-      if (url_tok){
+      if (url_tok) {
         int map_url_ct = 0;
         char *map_url  = NULL;
         map_url        = TSUrlStringGet(rri->requestBufp, rri->requestUrl, &map_url_ct);
@@ -341,7 +339,7 @@ TSRemapDoRemap(void *ih, TSHttpTxn txnp, TSRemapRequestInfo *rri)
         cjose_jws_release(map_jws);
 
         char *strip_uri_start = map_strp->strip_uri;
-        char *strip_uri_end   = &map_strp->strip_uri[map_strp->strip_uri_ct - 1 ];
+        char *strip_uri_end   = &map_strp->strip_uri[map_strp->strip_uri_ct - 1];
         PluginDebug("Stripping token from upstream url to: %s", strip_uri_start);
 
         TSParseResult parse_rc = TSUrlParse(rri->requestBufp, rri->requestUrl, (const char **)&strip_uri_start, strip_uri_end);

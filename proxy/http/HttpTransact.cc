@@ -2263,7 +2263,7 @@ HttpTransact::HandleCacheOpenReadHitFreshness(State *s)
 {
   CacheHTTPInfo *&obj = s->cache_info.object_read;
 
-  //ink_release_assert((s->request_sent_time == UNDEFINED_TIME) && (s->response_received_time == UNDEFINED_TIME));
+  // ink_release_assert((s->request_sent_time == UNDEFINED_TIME) && (s->response_received_time == UNDEFINED_TIME));
   TxnDebug("http_seq", "[HttpTransact::HandleCacheOpenReadHitFreshness] Hit in cache");
 
   if (delete_all_document_alternates_and_return(s, true)) {
@@ -2906,7 +2906,7 @@ HttpTransact::handle_cache_write_lock(State *s)
         s->cache_info.write_status = CACHE_WRITE_LOCK_MISS;
         remove_ims                 = true;
         break;
-      }      
+      }
     default:
       s->cache_info.write_status = CACHE_WRITE_LOCK_MISS;
       remove_ims                 = true;
@@ -2962,7 +2962,7 @@ HttpTransact::handle_cache_write_lock(State *s)
     next           = SM_ACTION_CACHE_LOOKUP;
     s->next_action = next;
     s->hdr_info.server_request.destroy();
-    TRANSACT_RETURN(next, nullptr);    
+    TRANSACT_RETURN(next, nullptr);
   } else {
     StateMachineAction_t next;
     next = how_to_open_connection(s);
