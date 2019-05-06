@@ -112,7 +112,7 @@ parse_redir_jwt(struct jwt *src, int ec, const char *x1uri)
 void
 redir_jwt_delete(struct redir_jwt *redir_jwt)
 {
-  if(!redir_jwt){
+  if (!redir_jwt) {
     return;
   }
   TSfree(redir_jwt);

@@ -85,6 +85,13 @@ status_down(unsigned argc, const char **argv)
     return CtrlCommandUsage(usage, opts, countof(opts));
   }
 
+  for (unsigned i = 0; i < n_file_arguments; i++) {
+    if (strncmp(file_arguments[i], "--", 2) == 0) {
+      fprintf(stderr, "Invalid syntax, Usage: %s\n", usage);
+      return CTRL_EX_ERROR;
+    }
+  }
+
   TSMgmtError error = TS_ERR_OKAY;
   for (unsigned i = 0; i < n_file_arguments; ++i) {
     error = TSHostStatusSetDown(file_arguments[i], down_time, reason);
@@ -101,7 +108,7 @@ static int
 status_up(unsigned argc, const char **argv)
 {
   char *reason      = nullptr;
-  const char *usage = "host up HOST [OPTIONS]";
+  const char *usage = "host up HOST [OPTS] [OPTIONS]";
 
   const ArgumentDescription opts[] = {
     // memory is allocated for 'reason', if this option is used
@@ -127,6 +134,13 @@ status_up(unsigned argc, const char **argv)
   if (!Reason::validReason(reason)) {
     fprintf(stderr, "\nInvalid reason: '%s'\n\n", reason);
     return CtrlCommandUsage(usage, opts, countof(opts));
+  }
+
+  for (unsigned i = 0; i < n_file_arguments; i++) {
+    if (strncmp(file_arguments[i], "--", 2) == 0) {
+      fprintf(stderr, "Invalid syntax, Usage: %s\n", usage);
+      return CTRL_EX_ERROR;
+    }
   }
 
   TSMgmtError error;
