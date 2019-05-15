@@ -470,6 +470,7 @@ struct OverridableHttpConfigParams {
       slow_log_threshold(0),
       body_factory_template_base(NULL),
       body_factory_template_base_len(0),
+      zombie_killer_threshold(0),
       proxy_response_server_string(NULL),
       proxy_response_server_string_len(0),
       global_user_agent_header(NULL),
@@ -690,6 +691,7 @@ struct OverridableHttpConfigParams {
   MgmtInt default_buffer_water_mark;
   MgmtInt slow_log_threshold;
 
+  MgmtInt zombie_killer_threshold;
   ///////////////////////////////////////////////////////////////////
   // Server header                                                 //
   ///////////////////////////////////////////////////////////////////

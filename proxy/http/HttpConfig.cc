@@ -1113,6 +1113,9 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigLongLong(c.max_post_size, "proxy.config.http.max_post_size");
 
+  // Custom param, sets the maximum number of state machine state transitions
+  HttpEstablishStaticConfigLongLong(c.oride.zombie_killer_threshold, "proxy.config.http.zombie_killer_threshold");
+
   //##############################################################################
   //#
   //# Redirection
@@ -1422,6 +1425,7 @@ HttpConfig::reconfigure()
 
   // Local Manager
   params->synthetic_port = m_master.synthetic_port;
+  params->oride.zombie_killer_threshold = m_master.oride.zombie_killer_threshold;
 
   m_id = configProcessor.set(m_id, params);
 

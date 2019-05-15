@@ -1481,6 +1481,7 @@ static const RecordElement RecordsConfig[] =
   //###########
   {RECT_CONFIG, "proxy.config.cache.http.compatibility.4-2-0-fixup", RECD_INT, "1", RECU_DYNAMIC, RR_NULL, RECC_NULL, nullptr, RECA_NULL},
 
+  {RECT_CONFIG, "proxy.config.http.zombie_killer_threshold", RECD_INT, "0", RECU_DYNAMIC, RR_NULL, RECC_INT, "^[0-9]+$", RECA_NULL},
 };
 // clang-format on
 

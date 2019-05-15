@@ -370,6 +370,7 @@ HttpSM::init()
 
   magic = HTTP_SM_MAGIC_ALIVE;
   sm_id = 0;
+  age   = 0;
 
   // Unique state machine identifier.
   //  changed next_sm_id from int64_t to int because
@@ -7202,7 +7203,20 @@ HttpSM::call_transact_and_set_next_state(TransactEntryFunc_t f)
 
   DebugSM("http", "[%" PRId64 "] State Transition: %s -> %s", sm_id, HttpDebugNames::get_action_name(last_action),
           HttpDebugNames::get_action_name(t_state.next_action));
-
+  /* Increase count of SM loops, if greater than threshold
+   * then kill this SM
+   */
+  ++age;
+  if (t_state.txn_conf->zombie_killer_threshold > 0) {
+    if (is_too_old()) {
+      /* If the SM is too old, just terminate it. It's probably a runaway machine
+       * in a loop of some sort. This is far from the most elegant way to solve this
+       * problem, but no legitimate SM should traverse thousands of states.
+       */
+      terminate_sm = true;
+      Warning("Killing state machine. Too old.");
+    }
+  }
   set_next_state();
 
   return;

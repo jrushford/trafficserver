@@ -581,6 +581,16 @@ public:
 
 private:
   PostDataBuffers _postbuf;
+
+protected:
+  unsigned int age; /**< Number of state transitions this SM has traversed. */
+
+  /** True iff the SM is too old and should be killed. */
+  inline bool
+  is_too_old()
+  {
+    return age > (t_state.txn_conf->zombie_killer_threshold);
+  }
 };
 
 // Function to get the cache_sm object - YTS Team, yamsat
