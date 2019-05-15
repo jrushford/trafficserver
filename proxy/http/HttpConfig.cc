@@ -1214,6 +1214,9 @@ HttpConfig::startup()
 
   HttpEstablishStaticConfigLongLong(c.max_post_size, "proxy.config.http.max_post_size");
 
+  // Custom param, sets the maximum number of state machine state transitions
+  HttpEstablishStaticConfigLongLong(c.oride.zombie_killer_threshold, "proxy.config.http.zombie_killer_threshold");
+
   //##############################################################################
   //#
   //# Redirection
@@ -1491,6 +1494,8 @@ HttpConfig::reconfigure()
   params->post_copy_size                    = m_master.post_copy_size;
   params->oride.client_cert_filename        = ats_strdup(m_master.oride.client_cert_filename);
   params->oride.client_cert_filepath        = ats_strdup(m_master.oride.client_cert_filepath);
+
+  params->oride.zombie_killer_threshold = m_master.oride.zombie_killer_threshold;
 
   params->negative_caching_list = m_master.negative_caching_list;
 
