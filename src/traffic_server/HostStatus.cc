@@ -363,10 +363,10 @@ HostStatus::setHostStatus(const char *name, HostStatus_t status, const unsigned 
   }
 }
 
-HostStatus_t
+HostStatRec *
 HostStatus::getHostStatus(const char *name)
 {
-  HostStatRec *_status = 0;
+  HostStatRec *_status = nullptr;
   time_t now           = time(0);
   bool lookup          = false;
 
@@ -408,26 +408,14 @@ HostStatus::getHostStatus(const char *name)
         reasons ^= Reason::MANUAL;
       }
     }
-    if ((_status->reasons & Reason::SELF_DETECT) && _status->self_detect_down_time > 0) {
-      if ((_status->self_detect_down_time + _status->self_detect_marked_down) < now) {
-        Debug("host_statuses", "name: %s, now: %ld, down_time: %d, marked_down: %ld, reason: %s", name, now,
-              _status->self_detect_down_time, _status->self_detect_marked_down, Reason::SELF_DETECT_REASON);
-        setHostStatus(name, HostStatus_t::HOST_STATUS_UP, 0, Reason::SELF_DETECT);
-        reasons ^= Reason::SELF_DETECT;
-      }
-    }
-    if (reasons == 0) {
-      return HostStatus_t::HOST_STATUS_UP;
-    } else {
-      return HostStatus_t::HOST_STATUS_DOWN;
-    }
+    _status->reasons = reasons;
   }
   // didn't find this host in host status db, create the record
   if (!lookup) {
     createHostStat(name);
   }
 
-  return lookup ? static_cast<HostStatus_t>(_status->status) : HostStatus_t::HOST_STATUS_UP;
+  return _status;
 }
 
 void
