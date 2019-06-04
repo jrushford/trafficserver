@@ -39,29 +39,6 @@ safe_delay(int msec)
   socketManager.poll(nullptr, 0, msec);
 }
 
-static int
-drain_throttled_accepts(NetAccept *na)
-{
-  struct pollfd afd;
-  Connection con[THROTTLE_AT_ONCE];
-
-  afd.fd     = na->server.fd;
-  afd.events = POLLIN;
-
-  // Try to close at most THROTTLE_AT_ONCE accept requests
-  // Stop if there is nothing waiting
-  int n = 0;
-  for (; n < THROTTLE_AT_ONCE && socketManager.poll(&afd, 1, 0) > 0; n++) {
-    int res = 0;
-    if ((res = na->server.accept(&con[n])) < 0) {
-      return res;
-    }
-    con[n].close();
-  }
-  // Return the number of accept cases we closed
-  return n;
-}
-
 //
 // General case network connection accept code
 //
@@ -253,19 +230,7 @@ NetAccept::do_blocking_accept(EThread *t)
   do {
     ink_hrtime now = Thread::get_hrtime();
 
-    // Throttle accepts
-    while (!opt.backdoor && check_net_throttle(ACCEPT)) {
-      check_throttle_warning(ACCEPT);
-      int num_throttled = drain_throttled_accepts(this);
-      if (num_throttled < 0) {
-        goto Lerror;
-      }
-      NET_SUM_DYN_STAT(net_connections_throttled_in_stat, num_throttled);
-      now = Thread::get_hrtime();
-    }
-
     if ((res = server.accept(&con)) < 0) {
-    Lerror:
       int seriousness = accept_error_seriousness(res);
       if (seriousness >= 0) { // not so bad
         if (!seriousness)     // bad enough to warn about
@@ -279,6 +244,15 @@ NetAccept::do_blocking_accept(EThread *t)
         Warning("accept thread received fatal error: errno = %d", errno);
       }
       return -1;
+    }
+
+    // check for throttle
+    if (!opt.backdoor && check_net_throttle(ACCEPT)) {
+      check_throttle_warning(ACCEPT);
+      // close the connection as we are in throttle state
+      con.close();
+      NET_SUM_DYN_STAT(net_connections_throttled_in_stat, 1);
+      continue;
     }
 
     // Use 'nullptr' to Bypass thread allocator
@@ -416,7 +390,7 @@ NetAccept::acceptFastEvent(int event, void *ep)
 #if defined(linux)
           || res == -EPIPE
 #endif
-          ) {
+      ) {
         goto Ldone;
       } else if (accept_error_seriousness(res) >= 0) {
         check_transient_accept_error(res);
@@ -510,9 +484,7 @@ NetAccept::acceptLoopEvent(int event, Event *e)
 //
 //
 
-NetAccept::NetAccept(const NetProcessor::AcceptOptions &_opt) : Continuation(nullptr), opt(_opt)
-{
-}
+NetAccept::NetAccept(const NetProcessor::AcceptOptions &_opt) : Continuation(nullptr), opt(_opt) {}
 
 //
 // Stop listening.  When the next poll takes place, an error will result.
