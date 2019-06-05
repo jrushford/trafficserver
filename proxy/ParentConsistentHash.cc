@@ -240,7 +240,6 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
           break;
         }
       }
-      Debug("parent_select", "wrap_around[PRIMARY]: %d, wrap_around[SECONDARY]: %d", wrap_around[PRIMARY], wrap_around[SECONDARY]);
       if (!wrap_around[PRIMARY] || (chash[SECONDARY] != nullptr && !wrap_around[SECONDARY])) {
         Debug("parent_select", "Selected parent %s is not available, looking up another parent.", pRec ? pRec->hostname : "[NULL]");
         switch (secondary_mode) {

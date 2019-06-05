@@ -32,6 +32,9 @@
 #include "tscore/HashSip.h"
 #include "ParentSelection.h"
 
+static constexpr const unsigned int PRIMARY   = 0;
+static constexpr const unsigned int SECONDARY = 1;
+
 //
 //  Implementation of round robin based upon consistent hash of the URL,
 //  ParentRR_t = P_CONSISTENT_HASH.
@@ -48,8 +51,6 @@ class ParentConsistentHash : public ParentSelectionStrategy
   int secondary_mode;
 
 public:
-  static const int PRIMARY   = 0;
-  static const int SECONDARY = 1;
   ParentConsistentHash(ParentRecord *_parent_record);
   ~ParentConsistentHash() override;
   pRecord *
