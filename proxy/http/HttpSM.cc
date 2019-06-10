@@ -4666,9 +4666,8 @@ void
 HttpSM::send_origin_throttled_response()
 {
   t_state.current.attempts = t_state.txn_conf->connect_attempts_max_retries;
-  t_state.current.state = HttpTransact::CONNECTION_ERROR;
-  //t_state.current.state = HttpTransact::CONGEST_CONTROL_CONGESTED_ON_F;
-  call_transact_and_set_next_state(HttpTransact::BadGateway);
+  t_state.current.state    = HttpTransact::CONNECTION_ERROR;
+  call_transact_and_set_next_state(HttpTransact::HandleResponse);
 }
 
 //////////////////////////////////////////////////////////////////////////
