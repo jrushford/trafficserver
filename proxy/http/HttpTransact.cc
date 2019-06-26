@@ -260,8 +260,13 @@ find_server_and_update_current_info(HttpTransact::State *s)
     // wanted it for all requests to local_host.
     s->parent_result.result = PARENT_DIRECT;
   } else if (s->method == HTTP_WKSIDX_CONNECT && s->http_config_param->disable_ssl_parenting) {
-    s->parent_params->findParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
-                                 s->txn_conf->parent_retry_time);
+    if (s->parent_result.result == PARENT_SPECIFIED) {
+      s->parent_params->nextParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
+                                   s->txn_conf->parent_retry_time);
+    } else {
+      s->parent_params->findParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
+                                   s->txn_conf->parent_retry_time);
+    }
     if (!s->parent_result.is_some() || s->parent_result.is_api_result() || s->parent_result.parent_is_proxy()) {
       DebugTxn("http_trans", "request not cacheable, so bypass parent");
       s->parent_result.result = PARENT_DIRECT;
@@ -274,11 +279,11 @@ find_server_and_update_current_info(HttpTransact::State *s)
     // we are assuming both child and parent have similar configuration
     // with respect to whether a request is cacheable or not.
     // For example, the cache_urls_that_look_dynamic variable.
-    if (s->parent_result.result == PARENT_UNDEFINED) {
-      s->parent_params->findParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
-                                   s->txn_conf->parent_retry_time);
-    } else if (s->parent_result.result == PARENT_SPECIFIED) {
+    if (s->parent_result.result == PARENT_SPECIFIED) {
       s->parent_params->nextParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
+                                   s->txn_conf->parent_retry_time);
+    } else {
+      s->parent_params->findParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
                                    s->txn_conf->parent_retry_time);
     }
     if (!s->parent_result.is_some() || s->parent_result.is_api_result() || s->parent_result.parent_is_proxy()) {
@@ -3673,7 +3678,7 @@ HttpTransact::handle_response_from_parent(State *s)
     s->current.server->connect_result = ENOTCONN;
     // only mark the parent down in hostdb if the configuration allows it,
     // see proxy.config.http.parent_proxy.mark_down_hostdb in records.config.
-    if (s->txn_conf->parent_failures_update_hostdb) {
+    if (s->txn_conf->parent_failures_update_hostdb && s->current.state != CONGEST_CONTROL_CONGESTED_ON_F) {
       s->state_machine->do_hostdb_update_if_necessary();
     }
 
@@ -3682,7 +3687,7 @@ HttpTransact::handle_response_from_parent(State *s)
              ats_ip_ntop(&s->current.server->dst_addr.sa, addrbuf, sizeof(addrbuf)));
 
     // If the request is not retryable, just give up!
-    if (!is_request_retryable(s)) {
+    if (!is_request_retryable(s) && s->current.state != CONGEST_CONTROL_CONGESTED_ON_F) {
       HTTP_INCREMENT_DYN_STAT(http_total_parent_marked_down_count);
       s->parent_params->markParentDown(&s->parent_result, s->txn_conf->parent_fail_threshold, s->txn_conf->parent_retry_time);
       s->parent_result.result = PARENT_FAIL;
@@ -3720,8 +3725,9 @@ HttpTransact::handle_response_from_parent(State *s)
       // Done trying parents... fail over to origin server if that is
       //   appropriate
       HTTP_INCREMENT_DYN_STAT(http_total_parent_retries_exhausted_stat);
-      DebugTxn("http_trans", "[handle_response_from_parent] Error. No more retries.");
-      if (s->current.state == CONNECTION_ERROR || s->current.state == CONGEST_CONTROL_CONGESTED_ON_F) {
+      DebugTxn("http_trans", "[handle_response_from_parent] Error, current.state: %s. No more retries.",
+               HttpDebugNames::get_server_state_name(s->current.state));
+      if (s->current.state == CONNECTION_ERROR) {
         HTTP_INCREMENT_DYN_STAT(http_total_parent_marked_down_count);
         s->parent_params->markParentDown(&s->parent_result, s->txn_conf->parent_fail_threshold, s->txn_conf->parent_retry_time);
       }
@@ -7719,7 +7725,11 @@ HttpTransact::handle_parent_died(State *s)
 {
   ink_assert(s->parent_result.result == PARENT_FAIL);
 
-  build_error_response(s, HTTP_STATUS_BAD_GATEWAY, "Next Hop Connection Failed", "connect#failed_connect", nullptr);
+  if (s->current.state == CONGEST_CONTROL_CONGESTED_ON_F) {
+    build_error_response(s, HTTP_STATUS_SERVICE_UNAVAILABLE, "Next Hop Congested ", "congestion#retryAfter", nullptr);
+  } else {
+    build_error_response(s, HTTP_STATUS_BAD_GATEWAY, "Next Hop Connection Failed", "connect#failed_connect", nullptr);
+  }
   TRANSACT_RETURN(SM_ACTION_SEND_ERROR_CACHE_NOOP, nullptr);
 }
 
