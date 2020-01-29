@@ -1,0 +1,20 @@
+ch_pselect:
+  go_direct: false
+  ring_mode: exhaust_ring
+  simple_retry:
+    - 404
+  unavailable_server:
+    - 500
+  hosts:
+    - r640-1:
+      host: r640-1.cdnlab.comcast.net
+      weight: 0.5
+      protocol:
+        - scheme: http 
+          port: 8080
+    - r640-2:
+      host: r640-2.cdnlab.comcast.net
+      weight: 0.5
+      protocol:
+        - scheme: http 
+          port: 8080
