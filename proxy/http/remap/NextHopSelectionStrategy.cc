@@ -218,6 +218,18 @@ NextHopSelectionStrategy::nextHopExists(TSHttpTxn txnp, void *ih)
   return false;
 }
 
+bool
+NextHopSelectionStrategy::responseIsRetryable(unsigned int current_retry_attempts, HTTPStatus response_code) {
+  return this->resp_codes.contains(response_code) &&
+    current_retry_attempts < this->max_simple_retries &&
+    current_retry_attempts < this->num_parents;
+}
+
+bool
+NextHopSelectionStrategy::onFailureMarkParentDown(HTTPStatus response_code) {
+	return response_code >= 500 && response_code <= 599;
+}
+
 namespace YAML
 {
 template <> struct convert<HostRecord> {

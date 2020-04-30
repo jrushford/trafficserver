@@ -207,6 +207,9 @@ public:
   void markNextHop(TSHttpTxn txnp, const char *hostname, const NHCmd status, void *ih = nullptr, const time_t now = 0);
   bool nextHopExists(TSHttpTxn txnp, void *ih = nullptr);
 
+  virtual bool responseIsRetryable(unsigned int current_retry_attempts, HTTPStatus response_code);
+  virtual bool onFailureMarkParentDown(HTTPStatus response_code);
+
   std::string strategy_name;
   bool go_direct           = true;
   bool parent_is_proxy     = true;
