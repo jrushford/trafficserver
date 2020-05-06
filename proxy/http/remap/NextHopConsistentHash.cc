@@ -376,10 +376,6 @@ NextHopConsistentHash::findNextHop(TSHttpTxn txnp, void *ih, time_t now)
   // Validate and return the final result.
   // ----------------------------------------------------------------------------------------------------
 
-  // use the available or marked for retry parent.
-  hst       = (pRec) ? pStatus.getHostStatus(pRec->hostname.c_str()) : nullptr;
-  host_stat = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
-
   if (pRec && host_stat == HOST_STATUS_UP && (pRec->available || result->retry)) {
     result->result      = PARENT_SPECIFIED;
     result->hostname    = pRec->hostname.c_str();
@@ -408,6 +404,7 @@ NextHopConsistentHash::findNextHop(TSHttpTxn txnp, void *ih, time_t now)
     result->hostname = nullptr;
     result->port     = 0;
     result->retry    = false;
+    NH_Debug(NH_DEBUG_TAG, "[%" PRIu64 "] result->result: %s set hostname null port 0 retry false", sm_id, ParentResultStr[result->result]);
   }
 
   return;
