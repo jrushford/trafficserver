@@ -8166,6 +8166,9 @@ _conf_to_memberp(TSOverridableConfigKey conf, OverridableHttpConfigParams *overr
   case TS_CONFIG_HTTP_ALLOW_HALF_OPEN:
     ret = _memberp_to_generic(&overridableHttpConfig->allow_half_open, typep);
     break;
+  case TS_CONFIG_HTTP_PARENT_PROXY_ENABLE_CONN_WARNING:
+    ret = _memberp_to_generic(&overridableHttpConfig->parent_proxy_enable_conn_warning, typep);
+    break;
   // This helps avoiding compiler warnings, yet detect unhandled enum members.
   case TS_CONFIG_NULL:
   case TS_CONFIG_LAST_ENTRY:
@@ -8848,8 +8851,17 @@ TSHttpTxnConfigFind(const char *name, int length, TSOverridableConfigKey *conf, 
     break;
 
   case 50:
-    if (!strncmp(name, "proxy.config.http.cache.cache_responses_to_cookies", length)) {
-      cnf = TS_CONFIG_HTTP_CACHE_CACHE_RESPONSES_TO_COOKIES;
+    switch (name[length - 1]) {
+    case 'g':
+      if (!strncmp(name, "proxy.config.http.parent_proxy.enable_conn_warning", length)) {
+        cnf = TS_CONFIG_HTTP_PARENT_PROXY_ENABLE_CONN_WARNING;
+      }
+      break;
+    case 's':
+      if (!strncmp(name, "proxy.config.http.cache.cache_responses_to_cookies", length)) {
+        cnf = TS_CONFIG_HTTP_CACHE_CACHE_RESPONSES_TO_COOKIES;
+      }
+      break;
     }
     break;
 

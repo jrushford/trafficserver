@@ -1160,6 +1160,13 @@ Parent Proxy Configuration
 
    See :ref:`admin-performance-timeouts` for more discussion on |TS| timeouts.
 
+.. ts:cv:: CONFIG proxy.config.http.parent_proxy.enable_conn_warning INT 0
+   :reloadable:
+   :overridable:
+
+   Enables (``1``) or disables (``0``) logging a warning message when a connection
+   error or a timeout occurs on a parent proxy cache.
+   
 .. ts:cv:: CONFIG proxy.config.http.parent_proxy.mark_down_hostdb INT 0
    :reloadable:
    :overridable:

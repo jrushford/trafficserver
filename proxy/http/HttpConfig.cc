@@ -1110,6 +1110,7 @@ HttpConfig::startup()
   HttpEstablishStaticConfigByte(c.oride.insert_squid_x_forwarded_for, "proxy.config.http.insert_squid_x_forwarded_for");
 
   HttpEstablishStaticConfigByte(c.oride.insert_age_in_response, "proxy.config.http.insert_age_in_response");
+  HttpEstablishStaticConfigByte(c.oride.parent_proxy_enable_conn_warning, "proxy.config.http.parent_proxy.enable_conn_warning");
   HttpEstablishStaticConfigByte(c.enable_http_stats, "proxy.config.http.enable_http_stats");
   HttpEstablishStaticConfigByte(c.oride.normalize_ae, "proxy.config.http.normalize_ae");
 
@@ -1365,7 +1366,8 @@ HttpConfig::reconfigure()
     params->oride.sock_option_flag_out &= ~NetVCOptions::SOCK_OPT_TCP_FAST_OPEN;
   }
 
-  params->oride.fwd_proxy_auth_to_parent = INT_TO_BOOL(m_master.oride.fwd_proxy_auth_to_parent);
+  params->oride.parent_proxy_enable_conn_warning = INT_TO_BOOL(m_master.oride.parent_proxy_enable_conn_warning);
+  params->oride.fwd_proxy_auth_to_parent         = INT_TO_BOOL(m_master.oride.fwd_proxy_auth_to_parent);
 
   params->oride.anonymize_remove_from       = INT_TO_BOOL(m_master.oride.anonymize_remove_from);
   params->oride.anonymize_remove_referer    = INT_TO_BOOL(m_master.oride.anonymize_remove_referer);

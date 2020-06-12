@@ -417,6 +417,7 @@ struct OverridableHttpConfigParams {
       attach_server_session_to_client(0),
       forward_connect_method(0),
       insert_age_in_response(1),
+      parent_proxy_enable_conn_warning(0),
       anonymize_remove_from(0),
       anonymize_remove_referer(0),
       anonymize_remove_user_agent(0),
@@ -551,6 +552,8 @@ struct OverridableHttpConfigParams {
   MgmtByte forward_connect_method;
 
   MgmtByte insert_age_in_response;
+
+  MgmtByte parent_proxy_enable_conn_warning;
 
   ///////////////////////////////////////////////////////////////////
   // Privacy: fields which are removed from the user agent request //

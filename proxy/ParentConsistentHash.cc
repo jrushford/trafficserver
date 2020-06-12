@@ -21,6 +21,7 @@
   limitations under the License.
  */
 #include "HostStatus.h"
+#include "HttpDebugNames.h"
 #include "ParentConsistentHash.h"
 
 ParentConsistentHash::ParentConsistentHash(ParentRecord *parent_record)

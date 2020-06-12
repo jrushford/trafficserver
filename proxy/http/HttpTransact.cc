@@ -264,6 +264,10 @@ find_server_and_update_current_info(HttpTransact::State *s)
     s->parent_result.result = PARENT_DIRECT;
   } else if (s->method == HTTP_WKSIDX_CONNECT && s->http_config_param->disable_ssl_parenting) {
     if (s->parent_result.result == PARENT_SPECIFIED) {
+      if (s->txn_conf->parent_proxy_enable_conn_warning) {
+        Warning("connection to parent %s failed, conn_state: %s, request to origin: %s", s->parent_result.hostname,
+                HttpDebugNames::get_server_state_name(s->current.state), s->request_data.get_host());
+      }
       s->parent_params->nextParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
                                    s->txn_conf->parent_retry_time);
     } else {
@@ -284,6 +288,10 @@ find_server_and_update_current_info(HttpTransact::State *s)
     // with respect to whether a request is cacheable or not.
     // For example, the cache_urls_that_look_dynamic variable.
     if (s->parent_result.result == PARENT_SPECIFIED) {
+      if (s->txn_conf->parent_proxy_enable_conn_warning) {
+        Warning("connection to parent %s failed, conn_state: %s, request to origin: %s", s->parent_result.hostname,
+                HttpDebugNames::get_server_state_name(s->current.state), s->request_data.get_host());
+      }
       s->parent_params->nextParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
                                    s->txn_conf->parent_retry_time);
     } else {
@@ -301,6 +309,10 @@ find_server_and_update_current_info(HttpTransact::State *s)
                                    s->txn_conf->parent_retry_time);
       break;
     case PARENT_SPECIFIED:
+      if (s->txn_conf->parent_proxy_enable_conn_warning) {
+        Warning("connection to parent %s failed, conn_state: %s, request to origin: %s", s->parent_result.hostname,
+                HttpDebugNames::get_server_state_name(s->current.state), s->request_data.get_host());
+      }
       s->parent_params->nextParent(&s->request_data, &s->parent_result, s->txn_conf->parent_fail_threshold,
                                    s->txn_conf->parent_retry_time);
 

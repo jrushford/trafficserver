@@ -149,6 +149,7 @@ TSOverridableConfigKey Value                                        Configuratio
 :c:macro:`TS_CONFIG_HTTP_PARENT_PROXY_RETRY_TIME`                   :ts:cv:`proxy.config.http.parent_proxy.retry_time`
 :c:macro:`TS_CONFIG_HTTP_PARENT_PROXY_TOTAL_CONNECT_ATTEMPTS`       :ts:cv:`proxy.config.http.parent_proxy.total_connect_attempts`
 :c:macro:`TS_CONFIG_HTTP_PER_PARENT_CONNECT_ATTEMPTS`               :ts:cv:`proxy.config.http.parent_proxy.per_parent_connect_attempts`
+:c:macro:`TS_CONFIG_HTTP_PARENT_PROXY_ENABLE_CONN_WARNING`	    :ts:cv:`proxy.config.http.parent_proxy.enable_conn_warning`
 :c:macro:`TS_CONFIG_HTTP_PER_SERVER_CONNECTION_MATCH`               :ts:cv:`proxy.config.http.per_server.connection.match`
 :c:macro:`TS_CONFIG_HTTP_PER_SERVER_CONNECTION_MAX`                 :ts:cv:`proxy.config.http.per_server.connection.max`
 :c:macro:`TS_CONFIG_HTTP_POST_CHECK_CONTENT_LENGTH_ENABLED`         :ts:cv:`proxy.config.http.post.check.content_length.enabled`
