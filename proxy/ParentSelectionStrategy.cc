@@ -65,6 +65,11 @@ ParentSelectionStrategy::markParentDown(ParentResult *result, unsigned int fail_
     //   must set the count to reflect this
     if (result->retry == false) {
       new_fail_count = pRec->failCount = 1;
+    } else {
+      // this was a retry that failed, decrement the retriers count
+      if (ink_atomic_decrement(&pRec->retriers, 1) < 0) {
+        ink_atomic_swap(&pRec->retriers, 0);
+      }
     }
 
     Note("Parent %s marked as down %s:%d", (result->retry) ? "retry" : "initially", pRec->hostname, pRec->port);
@@ -121,6 +126,8 @@ ParentSelectionStrategy::markParentUp(ParentResult *result)
 
   ink_atomic_swap(&pRec->failedAt, (time_t)0);
   int old_count = ink_atomic_swap(&pRec->failCount, 0);
+  // a retry succeeded, just reset retriers
+  ink_atomic_swap(&pRec->retriers, 0);
 
   if (old_count > 0) {
     Note("http parent proxy %s:%d restored", pRec->hostname, pRec->port);

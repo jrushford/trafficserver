@@ -156,9 +156,12 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
       }
     } else {
       if ((result->wrap_around) ||
-          ((parents[cur_index].failedAt + retry_time) < request_info->xact_start && host_stat == HOST_STATUS_UP)) {
-        Debug("parent_select", "Parent[%d].failedAt = %u, retry = %u,xact_start = %" PRId64 " but wrap = %d", cur_index,
-              (unsigned)parents[cur_index].failedAt, retry_time, (int64_t)request_info->xact_start, result->wrap_around);
+          (((parents[cur_index].failedAt + retry_time) < request_info->xact_start) && host_stat == HOST_STATUS_UP &&
+           (parents[cur_index].retriers < max_retriers && ink_atomic_increment(&parents[cur_index].retriers, 1) < max_retriers))) {
+        Debug("parent_select",
+              "Parent[%d].failedAt = %u, retry = %u, retriers = %u, max_retriers = %u, xact_start = %" PRId64 " but wrap = %d",
+              cur_index, (unsigned)parents[cur_index].failedAt, retry_time, (unsigned)parents[cur_index].retriers, max_retriers,
+              (int64_t)request_info->xact_start, result->wrap_around);
         // Reuse the parent
         parentUp    = true;
         parentRetry = true;

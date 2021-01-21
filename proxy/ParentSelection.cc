@@ -532,6 +532,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->parents[i].name                    = this->parents[i].hostname;
       this->parents[i].available               = true;
       this->parents[i].weight                  = weight;
+      this->parents[i].retriers                = 0;
       hs.createHostStat(this->parents[i].hostname);
       if (tmp3) {
         memcpy(this->parents[i].hash_string, tmp3 + 1, strlen(tmp3));
@@ -552,6 +553,7 @@ ParentRecord::ProcessParents(char *val, bool isPrimary)
       this->secondary_parents[i].name                    = this->secondary_parents[i].hostname;
       this->secondary_parents[i].available               = true;
       this->secondary_parents[i].weight                  = weight;
+      this->secondary_parents[i].retriers                = 0;
       hs.createHostStat(this->secondary_parents[i].hostname);
       if (tmp3) {
         memcpy(this->secondary_parents[i].hash_string, tmp3 + 1, strlen(tmp3));
@@ -1049,10 +1051,24 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
     delete params;                                                                                                         \
     ParentTable = new P_table("", "ParentSelection Unit Test Table", &http_dest_tags,                                      \
                               ALLOW_HOST_TABLE | ALLOW_REGEX_TABLE | ALLOW_URL_TABLE | ALLOW_IP_TABLE | DONT_BUILD_TABLE); \
-    ParentTable->BuildTableFromString(tbl);                                                                                \
     RecSetRecordInt("proxy.config.http.parent_proxy.fail_threshold", fail_threshold, REC_SOURCE_DEFAULT);                  \
     RecSetRecordInt("proxy.config.http.parent_proxy.retry_time", retry_time, REC_SOURCE_DEFAULT);                          \
     RecSetRecordInt("proxy.config.http.parent_proxy_routing_enable", 1, REC_SOURCE_DEFAULT);                               \
+    RecSetRecordInt("proxy.config.http.parent_proxy.max_trans_retries", 20, REC_SOURCE_DEFAULT);                           \
+    ParentTable->BuildTableFromString(tbl);                                                                                \
+    params = new ParentConfigParams(ParentTable);                                                                          \
+  } while (0)
+
+#define REBUILD2                                                                                                           \
+  do {                                                                                                                     \
+    delete params;                                                                                                         \
+    ParentTable = new P_table("", "ParentSelection Unit Test Table", &http_dest_tags,                                      \
+                              ALLOW_HOST_TABLE | ALLOW_REGEX_TABLE | ALLOW_URL_TABLE | ALLOW_IP_TABLE | DONT_BUILD_TABLE); \
+    RecSetRecordInt("proxy.config.http.parent_proxy.fail_threshold", fail_threshold, REC_SOURCE_DEFAULT);                  \
+    RecSetRecordInt("proxy.config.http.parent_proxy.retry_time", retry_time, REC_SOURCE_DEFAULT);                          \
+    RecSetRecordInt("proxy.config.http.parent_proxy_routing_enable", 1, REC_SOURCE_DEFAULT);                               \
+    RecSetRecordInt("proxy.config.http.parent_proxy.max_trans_retries", 1, REC_SOURCE_DEFAULT);                            \
+    ParentTable->BuildTableFromString(tbl);                                                                                \
     params = new ParentConfigParams(ParentTable);                                                                          \
   } while (0)
 
@@ -1814,7 +1830,37 @@ EXCLUSIVE_REGRESSION_TEST(PARENTSELECTION)(RegressionTest * /* t ATS_UNUSED */, 
   // so that subsequent test runs do not fail unexpectedly.
   _st.setHostStatus("curly", HOST_STATUS_UP, 0, Reason::MANUAL);
   _st.setHostStatus("fuzzy", HOST_STATUS_UP, 0, Reason::MANUAL);
-  sleep(2);
+
+  // max_retriers tests
+  // Test 212
+  tbl[0] = '\0';
+  ST(212);
+  T("dest_domain=mouse.com parent=mickey:80|0.33;minnie:80|0.33;goofy:80|0.33 "
+    "round_robin=consistent_hash go_direct=false\n");
+  REBUILD2;
+  REINIT;
+  br(request, "i.am.mouse.com");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "goofy", 80), 212);
+
+  // Test 213
+  // markdown goofy and wait for retry window to elapse
+  // since max_retriers is 1, goofy will still be selected.
+  ST(213);
+  params->markParentDown(result, fail_threshold, retry_time); // marked down goofy
+  sleep(params->policy.ParentRetryTime + 2);
+  REINIT;
+  br(request, "i.am.mouse.com");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "goofy", 80), 213);
+
+  // Test 214
+  // minnie gets chosen because max_retriers was set to 1.
+  ST(214);
+  REINIT;
+  br(request, "i.am.mouse.com");
+  FP;
+  RE(verify(result, PARENT_SPECIFIED, "minnie", 80), 214);
 
   delete request;
   delete result;

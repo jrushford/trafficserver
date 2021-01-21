@@ -97,13 +97,14 @@ private:
 struct pRecord : ATSConsistentHashNode {
   char hostname[MAXDNAME + 1];
   int port;
-  time_t failedAt;
-  int failCount;
+  time_t failedAt = 0;
+  int failCount   = 0;
   int32_t upAt;
   const char *scheme; // for which parent matches (if any)
   int idx;
   float weight;
   char hash_string[MAXDNAME + 1];
+  int retriers = 0;
 };
 
 typedef ControlMatcher<ParentRecord, ParentResult> P_table;
@@ -283,6 +284,10 @@ struct ParentSelectionPolicy {
 class ParentSelectionStrategy
 {
 public:
+  int max_retriers;
+
+  ParentSelectionStrategy() { REC_ReadConfigInteger(max_retriers, "proxy.config.http.parent_proxy.max_trans_retries"); }
+
   //
   // Return the pRecord.
   virtual pRecord *getParents(ParentResult *result) = 0;
@@ -315,6 +320,7 @@ public:
   bool apiParentExists(HttpRequestData *rdata);
   void findParent(HttpRequestData *rdata, ParentResult *result, unsigned int fail_threshold, unsigned int retry_time);
   void nextParent(HttpRequestData *rdata, ParentResult *result, unsigned int fail_threshold, unsigned int retry_time);
+
   bool parentExists(HttpRequestData *rdata);
 
   // implementation of functions from ParentSelectionStrategy.

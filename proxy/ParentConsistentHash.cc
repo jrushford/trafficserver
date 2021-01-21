@@ -228,9 +228,11 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
       // check if the host is retryable.  It's retryable if the retry window has elapsed
       // and the global host status is HOST_STATUS_UP
       if (pRec && !pRec->available && host_stat == HOST_STATUS_UP) {
-        Debug("parent_select", "Parent.failedAt = %u, retry = %u, xact_start = %u", (unsigned int)pRec->failedAt,
-              (unsigned int)retry_time, (unsigned int)request_info->xact_start);
-        if ((pRec->failedAt + retry_time) < request_info->xact_start) {
+        Debug("parent_select", "Parent.failedAt = %u, retry = %u, retriers = %u, max_retriers = %u, xact_start = %u",
+              (unsigned int)pRec->failedAt, (unsigned int)retry_time, (unsigned)pRec->retriers, max_retriers,
+              (unsigned int)request_info->xact_start);
+        if ((pRec->failedAt + retry_time) < request_info->xact_start &&
+            (pRec->retriers < max_retriers && ink_atomic_increment(&pRec->retriers, 1) < max_retriers)) {
           parentRetry = true;
           // make sure that the proper state is recorded in the result structure
           result->last_parent = pRec->idx;
@@ -388,6 +390,8 @@ ParentConsistentHash::markParentUp(ParentResult *result)
   Debug("parent_select", "%s:%s(): marked %s:%d available.", __FILE__, __func__, pRec->hostname, pRec->port);
 
   ink_atomic_swap(&pRec->failedAt, (time_t)0);
+  ink_atomic_swap(&pRec->retriers, 0);
+
   int old_count = ink_atomic_swap(&pRec->failCount, 0);
 
   if (old_count > 0) {
