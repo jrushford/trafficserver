@@ -142,7 +142,7 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
   uint32_t last_lookup;
   pRecord *prtmp = nullptr, *pRec = nullptr;
   HostStatus &pStatus    = HostStatus::instance();
-  HostStatus_t host_stat = HostStatus_t::HOST_STATUS_INIT;
+  TSHostStatus host_stat = TSHostStatus::TS_HOST_STATUS_INIT;
 
   Debug("parent_select", "ParentConsistentHash::%s(): Using a consistent hash parent selection strategy.", __func__);
   ink_assert(numParents(result) > 0 || result->rec->go_direct == true);
@@ -173,7 +173,7 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
       last_lookup = PRIMARY;
       break;
     case 3:
-      if (result->first_choice_status == HOST_STATUS_DOWN && chash[SECONDARY] != nullptr) {
+      if (result->first_choice_status == TS_HOST_STATUS_DOWN && chash[SECONDARY] != nullptr) {
         last_lookup = SECONDARY;
       } else {
         last_lookup = PRIMARY;
@@ -214,23 +214,23 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
 
   // didn't find a parent or the parent is marked unavailable or the parent is marked down
   HostStatRec *hst = (pRec) ? pStatus.getHostStatus(pRec->hostname) : nullptr;
-  host_stat        = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
+  host_stat        = (hst) ? hst->status : TSHostStatus::TS_HOST_STATUS_UP;
   if (firstCall) {
     result->first_choice_status = host_stat;
   }
 
   // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
   // ignore the down status and mark it as avaialble
-  if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
+  if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == TS_HOST_STATUS_DOWN)) {
     if (hst->reasons == Reason::SELF_DETECT) {
-      host_stat = HOST_STATUS_UP;
+      host_stat = TS_HOST_STATUS_UP;
     }
   }
-  if (!pRec || (pRec && !pRec->available) || host_stat == HOST_STATUS_DOWN) {
+  if (!pRec || (pRec && !pRec->available) || host_stat == TS_HOST_STATUS_DOWN) {
     do {
       // check if the host is retryable.  It's retryable if the retry window has elapsed
       // and the global host status is HOST_STATUS_UP
-      if (pRec && !pRec->available && host_stat == HOST_STATUS_UP) {
+      if (pRec && !pRec->available && host_stat == TS_HOST_STATUS_UP) {
         Debug("parent_select", "Parent.failedAt = %u, retry = %u, xact_start = %u", (unsigned int)pRec->failedAt,
               (unsigned int)retry_time, (unsigned int)request_info->xact_start);
         if ((pRec->failedAt + retry_time) < request_info->xact_start) {
@@ -256,7 +256,7 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
           }
           break;
         case 3:
-          if (result->first_choice_status == HOST_STATUS_DOWN) {
+          if (result->first_choice_status == TS_HOST_STATUS_DOWN) {
             if (chash[SECONDARY] != nullptr && !wrap_around[SECONDARY]) {
               last_lookup = SECONDARY;
             } else if (!wrap_around[PRIMARY]) {
@@ -298,15 +298,15 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
         break;
       }
       hst       = (pRec) ? pStatus.getHostStatus(pRec->hostname) : nullptr;
-      host_stat = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
+      host_stat = (hst) ? hst->status : TSHostStatus::TS_HOST_STATUS_UP;
       // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
       // ignore the down status and mark it as avaialble
-      if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
+      if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == TS_HOST_STATUS_DOWN)) {
         if (hst->reasons == Reason::SELF_DETECT) {
-          host_stat = HOST_STATUS_UP;
+          host_stat = TS_HOST_STATUS_UP;
         }
       }
-    } while (!pRec || !pRec->available || host_stat == HOST_STATUS_DOWN);
+    } while (!pRec || !pRec->available.load() || host_stat == TS_HOST_STATUS_DOWN);
   }
 
   Debug("parent_select", "Additional parent lookups: %d", lookups);
@@ -317,12 +317,12 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
 
   // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
   // ignore the down status and mark it as avaialble
-  if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == HOST_STATUS_DOWN)) {
+  if ((pRec && result->rec->ignore_self_detect) && (hst && hst->status == TS_HOST_STATUS_DOWN)) {
     if (hst->reasons == Reason::SELF_DETECT) {
-      host_stat = HOST_STATUS_UP;
+      host_stat = TS_HOST_STATUS_UP;
     }
   }
-  if (pRec && host_stat == HOST_STATUS_UP && (pRec->available || result->retry)) {
+  if (pRec && host_stat == TS_HOST_STATUS_UP && (pRec->available || result->retry)) {
     result->result      = PARENT_SPECIFIED;
     result->hostname    = pRec->hostname;
     result->port        = pRec->port;
@@ -383,8 +383,8 @@ ParentConsistentHash::markParentUp(ParentResult *result)
   }
 
   ink_assert((result->last_parent) < numParents(result));
-  pRec = parents[result->last_lookup] + result->last_parent;
-  ink_atomic_swap(&pRec->available, true);
+  pRec            = parents[result->last_lookup] + result->last_parent;
+  pRec->available = true;
   Debug("parent_select", "%s:%s(): marked %s:%d available.", __FILE__, __func__, pRec->hostname, pRec->port);
 
   ink_atomic_swap(&pRec->failedAt, static_cast<time_t>(0));

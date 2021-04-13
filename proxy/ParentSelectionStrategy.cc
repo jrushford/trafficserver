@@ -90,8 +90,9 @@ ParentSelectionStrategy::markParentDown(ParentResult *result, unsigned int fail_
   if (new_fail_count > 0 && new_fail_count >= static_cast<int>(fail_threshold)) {
     Note("Failure threshold met failcount:%d >= threshold:%d, http parent proxy %s:%d marked down", new_fail_count, fail_threshold,
          pRec->hostname, pRec->port);
-    ink_atomic_swap(&pRec->available, false);
-    Debug("parent_select", "Parent %s:%d marked unavailable, pRec->available=%d", pRec->hostname, pRec->port, pRec->available);
+    pRec->available = false;
+    Debug("parent_select", "Parent %s:%d marked unavailable, pRec->available=%d", pRec->hostname, pRec->port,
+          pRec->available.load());
   }
 }
 
@@ -116,8 +117,8 @@ ParentSelectionStrategy::markParentUp(ParentResult *result)
   }
 
   ink_assert((int)(result->last_parent) < num_parents);
-  pRec = parents + result->last_parent;
-  ink_atomic_swap(&pRec->available, true);
+  pRec            = parents + result->last_parent;
+  pRec->available = true;
 
   ink_atomic_swap(&pRec->failedAt, static_cast<time_t>(0));
   int old_count = ink_atomic_swap(&pRec->failCount, 0);

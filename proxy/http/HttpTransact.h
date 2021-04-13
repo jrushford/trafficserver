@@ -37,6 +37,7 @@
 #include "Transform.h"
 #include "Milestones.h"
 #include "ts/remap.h"
+#include "ts/parentselectdefs.h"
 #include "RemapPluginInfo.h"
 #include "UrlMapping.h"
 #include "records/I_RecHttp.h"
@@ -653,6 +654,13 @@ public:
     _SquidLogInfo() {}
   } SquidLogInfo;
 
+  typedef struct _ResponseAction {
+    bool handled = false;
+    TSResponseAction action;
+
+    _ResponseAction() {}
+  } ResponseAction;
+
   struct State {
     HttpTransactMagic_t m_magic = HTTP_TRANSACT_MAGIC_ALIVE;
 
@@ -805,6 +813,8 @@ public:
     bool transparent_passthrough = false;
     bool range_in_cache          = false;
 
+    ResponseAction response_action;
+
     // Methods
     void
     init()
@@ -943,6 +953,7 @@ public:
   static void OSDNSLookup(State *s);
   static void ReDNSRoundRobin(State *s);
   static void PPDNSLookup(State *s);
+  static void PPDNSLookupAPICall(State *s);
   static void OriginServerRawOpen(State *s);
   static void HandleCacheOpenRead(State *s);
   static void HandleCacheOpenReadHitFreshness(State *s);
@@ -958,6 +969,7 @@ public:
   static void handle_transform_ready(State *s);
   static void handle_transform_cache_write(State *s);
   static void handle_response_from_parent(State *s);
+  static void handle_response_from_parent_plugin(State *s);
   static void handle_response_from_server(State *s);
   static void delete_server_rr_entry(State *s, int max_retries);
   static void retry_server_connection_not_open(State *s, ServerState_t conn_state, unsigned max_retries);

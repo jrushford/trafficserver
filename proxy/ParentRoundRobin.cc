@@ -63,7 +63,7 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
   bool parentUp          = false;
   bool parentRetry       = false;
   HostStatus &pStatus    = HostStatus::instance();
-  HostStatus_t host_stat = HostStatus_t::HOST_STATUS_UP;
+  TSHostStatus host_stat = TSHostStatus::TS_HOST_STATUS_UP;
 
   HttpRequestData *request_info = static_cast<HttpRequestData *>(rdata);
 
@@ -137,18 +137,18 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
   //   should be retried
   do {
     HostStatRec *hst = pStatus.getHostStatus(parents[cur_index].hostname);
-    host_stat        = (hst) ? hst->status : HostStatus_t::HOST_STATUS_UP;
+    host_stat        = (hst) ? hst->status : TSHostStatus::TS_HOST_STATUS_UP;
     // if the config ignore_self_detect is set to true and the host is down due to SELF_DETECT reason
     // ignore the down status and mark it as avaialble
-    if (result->rec->ignore_self_detect && (hst && hst->status == HOST_STATUS_DOWN)) {
+    if (result->rec->ignore_self_detect && (hst && hst->status == TS_HOST_STATUS_DOWN)) {
       if (hst->reasons == Reason::SELF_DETECT) {
-        host_stat = HOST_STATUS_UP;
+        host_stat = TS_HOST_STATUS_UP;
       }
     }
     Debug("parent_select", "cur_index: %d, result->start_parent: %d", cur_index, result->start_parent);
     // DNS ParentOnly inhibits bypassing the parent so always return that t
     if ((parents[cur_index].failedAt == 0) || (parents[cur_index].failCount < static_cast<int>(fail_threshold))) {
-      if (host_stat == HOST_STATUS_UP) {
+      if (host_stat == TS_HOST_STATUS_UP) {
         Debug("parent_select", "FailThreshold = %d", fail_threshold);
         Debug("parent_select", "Selecting a parent due to little failCount (faileAt: %u failCount: %d)",
               (unsigned)parents[cur_index].failedAt, parents[cur_index].failCount);
@@ -156,7 +156,7 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
       }
     } else {
       if ((result->wrap_around) ||
-          ((parents[cur_index].failedAt + retry_time) < request_info->xact_start && host_stat == HOST_STATUS_UP)) {
+          ((parents[cur_index].failedAt + retry_time) < request_info->xact_start && host_stat == TS_HOST_STATUS_UP)) {
         Debug("parent_select", "Parent[%d].failedAt = %u, retry = %u,xact_start = %" PRId64 " but wrap = %d", cur_index,
               (unsigned)parents[cur_index].failedAt, retry_time, (int64_t)request_info->xact_start, result->wrap_around);
         // Reuse the parent
@@ -168,7 +168,7 @@ ParentRoundRobin::selectParent(bool first_call, ParentResult *result, RequestDat
       }
     }
 
-    if (parentUp == true && host_stat != HOST_STATUS_DOWN) {
+    if (parentUp == true && host_stat != TS_HOST_STATUS_DOWN) {
       Debug("parent_select", "status for %s: %d", parents[cur_index].hostname, host_stat);
       result->result      = PARENT_SPECIFIED;
       result->hostname    = parents[cur_index].hostname;
