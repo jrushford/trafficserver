@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include "ts/nexthop.h"
+#include "ts/parentselectdefs.h"
 #include "ParentSelection.h"
 
 #ifndef _NH_UNIT_TESTS_
@@ -41,6 +41,15 @@ namespace YAML
 {
 class Node;
 }
+
+enum NHCmd { NH_MARK_UP, NH_MARK_DOWN };
+
+struct NHHealthStatus {
+  virtual bool isNextHopAvailable(TSHttpTxn txn, const char *hostname, const int port, void *ih = nullptr) = 0;
+  virtual void markNextHop(TSHttpTxn txn, const char *hostname, const int port, const NHCmd status, void *ih = nullptr,
+                           const time_t now = 0)                                                           = 0;
+  virtual ~NHHealthStatus() {}
+};
 
 enum NHPolicyType {
   NH_UNDEFINED = 0,
@@ -141,7 +150,7 @@ struct HostRecord : ATSConsistentHashNode {
     hash_string = o.hash_string;
     host_index  = o.host_index;
     group_index = o.group_index;
-    available   = o.available;
+    available   = o.available.load();
     protocols   = o.protocols;
     return *this;
   }
