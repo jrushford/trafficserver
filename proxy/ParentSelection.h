@@ -430,9 +430,12 @@ public:
   {
     pRecord *p = getParents(result);
     uint32_t n = numParents(result);
+    Debug("parent_select", "1: In retryComplete(): p->hostname: %s, p->retriers: %d", p->hostname, p->retriers());
     if (p != nullptr && result->last_parent < n) {
+      Debug("parent_select", "1.5: In retryComplete(): p[result->last_parent].retriers: %d", p[result->last_parent].retriers());
       p[result->last_parent].retryComplete();
     }
+    Debug("parent_select", "2: In retryComplete(): p->hostname: %s, p->retriers: %d", p->hostname, p->retriers());
   }
 };
 

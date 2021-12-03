@@ -232,8 +232,9 @@ ParentConsistentHash::selectParent(bool first_call, ParentResult *result, Reques
       // check if the host is retryable.  It's retryable if the retry window has elapsed
       // and the global host status is HOST_STATUS_UP
       if (pRec && !pRec->available.load() && host_stat == TS_HOST_STATUS_UP) {
-        Debug("parent_select", "Parent.failedAt = %u, retry = %u, xact_start = %u", static_cast<unsigned>(pRec->failedAt.load()),
-              static_cast<unsigned>(retry_time), static_cast<unsigned>(request_info->xact_start));
+        Debug("parent_select", "Parent.failedAt = %u, retry = %u, xact_start = %u, retriers = %d, max_retriers = %d",
+              static_cast<unsigned>(pRec->failedAt.load()), static_cast<unsigned>(retry_time),
+              static_cast<unsigned>(request_info->xact_start), pRec->retriers(), max_retriers);
         if ((pRec->failedAt.load() + retry_time) < request_info->xact_start) {
           if (pRec->retriers.inc(max_retriers)) {
             parentRetry = true;
