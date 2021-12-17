@@ -1285,6 +1285,25 @@ Parent Proxy Configuration
    ``2`` Mark the host down. This is the default.
    ===== ======================================================================
 
+.. ts:cv:: CONFIG proxy.config.http.parent_proxy.enable_parent_timeout_markdowns INT 0
+   :reloadable:
+   :overridable:
+
+   Enables (``1``) or disables (``0``) parent proxy mark downs due to inactivity
+   timeouts.  The default is disabled (``0``).  This should be used for specific
+   remap entries using ``header_rewrite`` to enable inactivity timeout markdowns rather
+   than enabling this globally
+
+.. ts:cv:: CONFIG proxy.config.http.parent_proxy.disable_parent_markdowns INT 0
+   :reloadable:
+   :overridable:
+
+   Enables (``1``) or disables (``0``) parent proxy markdowns.  This is useful
+   if a parent entries in a parent.config line are VIP's and one doesn't wish
+   to mark down a VIP which may have several origin or parent proxies behind
+   this load balancer.  This should be used for specific remap entries using
+   ``header_rewrite`` rather than disabling parent mark downs globally.
+
 HTTP Connection Timeouts
 ========================
 

@@ -8696,7 +8696,9 @@ std::array<std::string_view, TS_CONFIG_LAST_ENTRY> SDK_Overridable_Configs = {
    "proxy.config.ssl.client.private_key.filename",
    "proxy.config.ssl.client.CA.cert.filename",
    "proxy.config.hostdb.ip_resolve",
-   "proxy.config.http.connect.dead.policy"}};
+   "proxy.config.http.connect.dead.policy",
+   "proxy.config.http.parent_proxy.enable_parent_timeout_markdowns",
+   "proxy.config.http.parent_proxy.disable_parent_markdowns"}};
 
 extern ClassAllocator<HttpSM> httpSMAllocator;
 
